@@ -76,7 +76,8 @@ enum ParamIDs
 
     pb_enableBlend,
     pb_channelBlend,
-    pb_blendPower
+    pb_blendPower,
+    pb_showBlend
 };
 
 // Axis indices — 0-based, matches the dropdown order in the dialog
@@ -124,6 +125,15 @@ class EZMultiPlanarUVW : public Modifier
 {
 public:
     IParamBlock2* pblock = nullptr;
+
+    struct BlendDisplayCache
+    {
+        std::vector<Point3> verts;    // object-space positions
+        std::vector<Point3> colors;   // per-vertex (R=X weight, G=Y weight, B=Z weight)
+        std::vector<int>    indices;  // flat: 3 ints per triangle
+        bool valid = false;
+    };
+    mutable BlendDisplayCache m_displayCache;
 
     EZMultiPlanarUVW()  { g_EZMultiPlanarUVWDesc.MakeAutoParamBlocks(this); }
     ~EZMultiPlanarUVW() override = default;
@@ -193,6 +203,58 @@ public:
     void EndEditParams(IObjParam* ip, ULONG flags, Animatable* next) override
     {
         g_EZMultiPlanarUVWDesc.EndEditParams(ip, this, flags, next);
+    }
+
+    // ---- Viewport display --------------------------------------------------
+
+    void GetWorldBoundBox(TimeValue t, INode* inode, ViewExp* /*vp*/, Box3& box) override
+    {
+        if (!m_displayCache.valid) return;
+        Matrix3 tm = inode->GetObjectTM(t);
+        for (const auto& v : m_displayCache.verts)
+            box += v * tm;
+    }
+
+    int Display(TimeValue t, INode* inode, ViewExp* vpt, int /*flags*/) override
+    {
+        if (!pblock || !m_displayCache.valid) return 0;
+
+        BOOL show = FALSE;
+        pblock->GetValue(pb_showBlend, t, show, FOREVER);
+        if (!show) return 0;
+
+        GraphicsWindow* gw = vpt->getGW();
+        gw->setTransform(inode->GetObjectTM(t));
+
+        const DWORD savedLimits = gw->getRndLimits();
+        gw->setRndLimits(GW_Z_BUFFER | GW_FLAT);
+
+        const int numFaces = static_cast<int>(m_displayCache.indices.size()) / 3;
+        Point3 uvw[3] = { Point3(0,0,0), Point3(0,0,0), Point3(0,0,0) };
+
+        for (int f = 0; f < numFaces; ++f)
+        {
+            const int i0 = m_displayCache.indices[f * 3];
+            const int i1 = m_displayCache.indices[f * 3 + 1];
+            const int i2 = m_displayCache.indices[f * 3 + 2];
+
+            // Per-face average color (smooth per-vertex would need per-vertex GW calls)
+            const Point3 col = (m_displayCache.colors[i0] +
+                                m_displayCache.colors[i1] +
+                                m_displayCache.colors[i2]) / 3.0f;
+
+            gw->setColor(FILL_COLOR, col.x, col.y, col.z);
+
+            Point3 pts[3] = {
+                m_displayCache.verts[i0],
+                m_displayCache.verts[i1],
+                m_displayCache.verts[i2]
+            };
+            gw->triangle(pts, uvw);
+        }
+
+        gw->setRndLimits(savedLimits);
+        return 1;
     }
 
     // ---- Modifier ----------------------------------------------------------
@@ -359,6 +421,40 @@ private:
             map.tv[v] = TransformUV(t, UVFromAxis(mesh.verts[v], mn, mx, axis));
     }
 
+    // ---- Display cache population ------------------------------------------
+
+    void PopulateDisplayCache(const Mesh& mesh, TimeValue t) const
+    {
+        const float power = std::max(0.001f, PBFloat(pblock, pb_blendPower, t, 1.0f));
+
+        std::vector<Point3> normals;
+        ComputeVertexNormals(mesh, normals);
+
+        m_displayCache.verts.assign(mesh.verts, mesh.verts + mesh.numVerts);
+        m_displayCache.colors.resize(mesh.numVerts);
+
+        for (int v = 0; v < mesh.numVerts; ++v)
+        {
+            const Point3& n = normals[v];
+            float wx = std::pow(std::fabs(n.x), power);
+            float wy = std::pow(std::fabs(n.y), power);
+            float wz = std::pow(std::fabs(n.z), power);
+            const float sum = wx + wy + wz;
+            if (sum > 1e-6f) { wx /= sum; wy /= sum; wz /= sum; }
+            m_displayCache.colors[v] = Point3(wx, wy, wz);
+        }
+
+        m_displayCache.indices.resize(mesh.numFaces * 3);
+        for (int f = 0; f < mesh.numFaces; ++f)
+        {
+            m_displayCache.indices[f * 3]     = mesh.faces[f].v[0];
+            m_displayCache.indices[f * 3 + 1] = mesh.faces[f].v[1];
+            m_displayCache.indices[f * 3 + 2] = mesh.faces[f].v[2];
+        }
+
+        m_displayCache.valid = true;
+    }
+
     // ---- Blend output ------------------------------------------------------
 
     void ComputeVertexNormals(const Mesh& mesh, std::vector<Point3>& out) const
@@ -435,8 +531,9 @@ private:
         const int  ax3  = std::clamp(PBInt(pblock, pb_axis3, t, Axis_Y), 0, 2);
         const int  ax4  = std::clamp(PBInt(pblock, pb_axis4, t, Axis_Y), 0, 2);
 
-        const BOOL enBlend = PBBool(pblock, pb_enableBlend,  t, FALSE);
-        const int  chBlend = ClampChannel(PBInt(pblock, pb_channelBlend, t, 10));
+        const BOOL enBlend  = PBBool(pblock, pb_enableBlend, t, FALSE);
+        const int  chBlend  = ClampChannel(PBInt(pblock, pb_channelBlend, t, 10));
+        const BOOL showBlend = PBBool(pblock, pb_showBlend,  t, FALSE);
 
         // Pre-expand map table to the highest channel needed in one call
         int highest = 1;
@@ -447,11 +544,18 @@ private:
         if (enBlend) highest = std::max(highest, chBlend);
         EnsureChannel(mesh, ClampChannel(highest));
 
-        if (en1)     ApplyPlanarChannel(t, mesh, ch1, ax1, mn, mx);
-        if (en2)     ApplyPlanarChannel(t, mesh, ch2, ax2, mn, mx);
-        if (en3)     ApplyPlanarChannel(t, mesh, ch3, ax3, mn, mx);
-        if (en4)     ApplyPlanarChannel(t, mesh, ch4, ax4, mn, mx);
-        if (enBlend) ApplyBlendChannel(t, mesh);
+        if (en1)      ApplyPlanarChannel(t, mesh, ch1, ax1, mn, mx);
+        if (en2)      ApplyPlanarChannel(t, mesh, ch2, ax2, mn, mx);
+        if (en3)      ApplyPlanarChannel(t, mesh, ch3, ax3, mn, mx);
+        if (en4)      ApplyPlanarChannel(t, mesh, ch4, ax4, mn, mx);
+        if (enBlend)  ApplyBlendChannel(t, mesh);
+
+        // Populate display cache whenever Show Blend is on.
+        // Done last so it shares the already-modified mesh topology.
+        if (showBlend)
+            PopulateDisplayCache(mesh, t);
+        else
+            m_displayCache.valid = false;
     }
 };
 
@@ -610,6 +714,11 @@ static ParamBlockDesc2 g_MainPBlock
         p_default, 1.0f,
         p_range, 0.001f, 32.0f,
         p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_BLEND_POWER, IDC_SPIN_BLEND_POWER, SPIN_AUTOSCALE,
+    p_end,
+
+    pb_showBlend,    _T("showBlend"),    TYPE_BOOL,  P_ANIMATABLE, IDS_SHOW_BLEND,
+        p_default, FALSE,
+        p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_SHOW_BLEND,
     p_end,
 
     p_end

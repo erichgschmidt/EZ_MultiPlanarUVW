@@ -68,6 +68,7 @@
 #define IDS_ENABLE_BLEND            24
 #define IDS_CHANNEL_BLEND           25
 #define IDS_BLEND_POWER             26
+#define IDS_SHOW_BLEND              27
 
 // Rollout controls — Blend Output
 #define IDC_CHK_ENABLE_BLEND        1160
@@ -75,6 +76,7 @@
 #define IDC_SPIN_CHANNEL_BLEND      1162
 #define IDC_EDIT_BLEND_POWER        1163
 #define IDC_SPIN_BLEND_POWER        1164
+#define IDC_CHK_SHOW_BLEND          1165
 
 // Rollout controls — Global UV
 #define IDC_EDIT_UTILE              1141

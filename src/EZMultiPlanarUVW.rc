@@ -1,4 +1,5 @@
 // EZMultiPlanarUVW.rc
+// Standard Max SDK rollout width: 108 dialog units.
 
 #include <winresrc.h>
 #include "resource.h"
@@ -7,25 +8,25 @@ LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
 
 STRINGTABLE
 BEGIN
-    IDS_PARAMS      "Parameters"
-    IDS_ENABLE1     "Enable 1"
-    IDS_CHANNEL1    "Channel 1"
-    IDS_AXIS1       "Axis 1"
-    IDS_ENABLE2     "Enable 2"
-    IDS_CHANNEL2    "Channel 2"
-    IDS_AXIS2       "Axis 2"
-    IDS_ENABLE3     "Enable 3"
-    IDS_CHANNEL3    "Channel 3"
-    IDS_AXIS3       "Axis 3"
-    IDS_ENABLE4     "Enable 4"
-    IDS_CHANNEL4    "Channel 4"
-    IDS_AXIS4       "Axis 4"
-    IDS_UTILE       "U Tile"
-    IDS_VTILE       "V Tile"
-    IDS_UOFFSET     "U Offset"
-    IDS_VOFFSET     "V Offset"
-    IDS_FLIPU       "Flip U"
-    IDS_FLIPV       "Flip V"
+    IDS_PARAMS          "Parameters"
+    IDS_ENABLE1         "Enable 1"
+    IDS_CHANNEL1        "Channel 1"
+    IDS_AXIS1           "Axis 1"
+    IDS_ENABLE2         "Enable 2"
+    IDS_CHANNEL2        "Channel 2"
+    IDS_AXIS2           "Axis 2"
+    IDS_ENABLE3         "Enable 3"
+    IDS_CHANNEL3        "Channel 3"
+    IDS_AXIS3           "Axis 3"
+    IDS_ENABLE4         "Enable 4"
+    IDS_CHANNEL4        "Channel 4"
+    IDS_AXIS4           "Axis 4"
+    IDS_UTILE           "U Tile"
+    IDS_VTILE           "V Tile"
+    IDS_UOFFSET         "U Offset"
+    IDS_VOFFSET         "V Offset"
+    IDS_FLIPU           "Flip U"
+    IDS_FLIPV           "Flip V"
     IDS_SWAPUV          "Swap UV"
     IDS_AXIS_X          "X  - side Y/Z"
     IDS_AXIS_Y          "Y  - front X/Z"
@@ -33,92 +34,92 @@ BEGIN
     IDS_ENABLE_BLEND    "Enable Blend"
     IDS_CHANNEL_BLEND   "Blend Channel"
     IDS_BLEND_POWER     "Blend Power"
+    IDS_SHOW_BLEND      "Show Blend"
 END
 
 // ---------------------------------------------------------------------------
-// Each channel group (height 84):
-//   Enable checkbox     rel y=14
-//   Map Ch spinner      rel y=28
-//   Radio X             rel y=44  WS_GROUP on first button
-//   Radio Y             rel y=56
-//   Radio Z             rel y=68
+// Layout at 108 DU wide (standard Max SDK modifier rollout width).
 //
-// Groups start at absolute y: 4, 92, 180, 268
-// Global UV Transform at y=356, height=82
-// Total dialog height: 446
+// Each channel group: y offsets are absolute.
+//   Ch1:  y=2   h=82  bottom=84
+//   Ch2:  y=88  h=82  bottom=170
+//   Ch3:  y=174 h=82  bottom=256
+//   Ch4:  y=260 h=82  bottom=342
+//   GlobalUV: y=346 h=80 bottom=426
+//   BlendOut: y=430 h=70 bottom=500
+//   Dialog total height: 504
 // ---------------------------------------------------------------------------
 
-IDD_PANEL DIALOG 0, 0, 186, 506
+IDD_PANEL DIALOG 0, 0, 108, 504
 STYLE DS_SETFONT | WS_CHILD | WS_VISIBLE
 FONT 8, "MS Sans Serif"
 BEGIN
     // ---- Channel 1 ---------------------------------------------------------
-    GROUPBOX    "Channel 1",        IDC_STATIC,         4,   4, 178,  84
-    CONTROL     "Enable",           IDC_CHK_ENABLE1,    "Button", BS_AUTOCHECKBOX | WS_TABSTOP,                     10,  14,  50,  10
-    LTEXT       "Map Ch:",          IDC_STATIC,         10,  30,  36,  10
-    CONTROL     "",                 IDC_EDIT_CHANNEL1,  "CustEdit",       WS_TABSTOP,                               48,  28,  42,  12
-    CONTROL     "",                 IDC_SPIN_CHANNEL1,  "SpinnerControl", WS_TABSTOP,                               90,  28,   7,  12
-    CONTROL     "X  - side Y/Z",   IDC_RAD_AXIS1_X,    "Button", BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,       10,  44, 164,  10
-    CONTROL     "Y  - front X/Z",  IDC_RAD_AXIS1_Y,    "Button", BS_AUTORADIOBUTTON,                               10,  56, 164,  10
-    CONTROL     "Z  - top X/Y",    IDC_RAD_AXIS1_Z,    "Button", BS_AUTORADIOBUTTON,                               10,  68, 164,  10
+    GROUPBOX    "Channel 1",        IDC_STATIC,          2,   2, 104,  82
+    CONTROL     "Enable",           IDC_CHK_ENABLE1,    "Button", BS_AUTOCHECKBOX | WS_TABSTOP,                      6,  14,  50,  10
+    LTEXT       "Map Ch:",          IDC_STATIC,          6,  28,  32,  10
+    CONTROL     "",                 IDC_EDIT_CHANNEL1,  "CustEdit",       WS_TABSTOP,                               40,  26,  34,  12
+    CONTROL     "",                 IDC_SPIN_CHANNEL1,  "SpinnerControl", WS_TABSTOP,                               74,  26,   7,  12
+    CONTROL     "X  - side Y/Z",   IDC_RAD_AXIS1_X,    "Button", BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,        6,  42,  96,  10
+    CONTROL     "Y  - front X/Z",  IDC_RAD_AXIS1_Y,    "Button", BS_AUTORADIOBUTTON,                                6,  54,  96,  10
+    CONTROL     "Z  - top X/Y",    IDC_RAD_AXIS1_Z,    "Button", BS_AUTORADIOBUTTON,                                6,  66,  96,  10
 
     // ---- Channel 2 ---------------------------------------------------------
-    GROUPBOX    "Channel 2",        IDC_STATIC,         4,  92, 178,  84
-    CONTROL     "Enable",           IDC_CHK_ENABLE2,    "Button", BS_AUTOCHECKBOX | WS_TABSTOP,                     10, 102,  50,  10
-    LTEXT       "Map Ch:",          IDC_STATIC,         10, 118,  36,  10
-    CONTROL     "",                 IDC_EDIT_CHANNEL2,  "CustEdit",       WS_TABSTOP,                               48, 116,  42,  12
-    CONTROL     "",                 IDC_SPIN_CHANNEL2,  "SpinnerControl", WS_TABSTOP,                               90, 116,   7,  12
-    CONTROL     "X  - side Y/Z",   IDC_RAD_AXIS2_X,    "Button", BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,       10, 132, 164,  10
-    CONTROL     "Y  - front X/Z",  IDC_RAD_AXIS2_Y,    "Button", BS_AUTORADIOBUTTON,                               10, 144, 164,  10
-    CONTROL     "Z  - top X/Y",    IDC_RAD_AXIS2_Z,    "Button", BS_AUTORADIOBUTTON,                               10, 156, 164,  10
+    GROUPBOX    "Channel 2",        IDC_STATIC,          2,  88, 104,  82
+    CONTROL     "Enable",           IDC_CHK_ENABLE2,    "Button", BS_AUTOCHECKBOX | WS_TABSTOP,                      6, 100,  50,  10
+    LTEXT       "Map Ch:",          IDC_STATIC,          6, 114,  32,  10
+    CONTROL     "",                 IDC_EDIT_CHANNEL2,  "CustEdit",       WS_TABSTOP,                               40, 112,  34,  12
+    CONTROL     "",                 IDC_SPIN_CHANNEL2,  "SpinnerControl", WS_TABSTOP,                               74, 112,   7,  12
+    CONTROL     "X  - side Y/Z",   IDC_RAD_AXIS2_X,    "Button", BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,        6, 128,  96,  10
+    CONTROL     "Y  - front X/Z",  IDC_RAD_AXIS2_Y,    "Button", BS_AUTORADIOBUTTON,                                6, 140,  96,  10
+    CONTROL     "Z  - top X/Y",    IDC_RAD_AXIS2_Z,    "Button", BS_AUTORADIOBUTTON,                                6, 152,  96,  10
 
     // ---- Channel 3 ---------------------------------------------------------
-    GROUPBOX    "Channel 3",        IDC_STATIC,         4, 180, 178,  84
-    CONTROL     "Enable",           IDC_CHK_ENABLE3,    "Button", BS_AUTOCHECKBOX | WS_TABSTOP,                     10, 190,  50,  10
-    LTEXT       "Map Ch:",          IDC_STATIC,         10, 206,  36,  10
-    CONTROL     "",                 IDC_EDIT_CHANNEL3,  "CustEdit",       WS_TABSTOP,                               48, 204,  42,  12
-    CONTROL     "",                 IDC_SPIN_CHANNEL3,  "SpinnerControl", WS_TABSTOP,                               90, 204,   7,  12
-    CONTROL     "X  - side Y/Z",   IDC_RAD_AXIS3_X,    "Button", BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,       10, 220, 164,  10
-    CONTROL     "Y  - front X/Z",  IDC_RAD_AXIS3_Y,    "Button", BS_AUTORADIOBUTTON,                               10, 232, 164,  10
-    CONTROL     "Z  - top X/Y",    IDC_RAD_AXIS3_Z,    "Button", BS_AUTORADIOBUTTON,                               10, 244, 164,  10
+    GROUPBOX    "Channel 3",        IDC_STATIC,          2, 174, 104,  82
+    CONTROL     "Enable",           IDC_CHK_ENABLE3,    "Button", BS_AUTOCHECKBOX | WS_TABSTOP,                      6, 186,  50,  10
+    LTEXT       "Map Ch:",          IDC_STATIC,          6, 200,  32,  10
+    CONTROL     "",                 IDC_EDIT_CHANNEL3,  "CustEdit",       WS_TABSTOP,                               40, 198,  34,  12
+    CONTROL     "",                 IDC_SPIN_CHANNEL3,  "SpinnerControl", WS_TABSTOP,                               74, 198,   7,  12
+    CONTROL     "X  - side Y/Z",   IDC_RAD_AXIS3_X,    "Button", BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,        6, 214,  96,  10
+    CONTROL     "Y  - front X/Z",  IDC_RAD_AXIS3_Y,    "Button", BS_AUTORADIOBUTTON,                                6, 226,  96,  10
+    CONTROL     "Z  - top X/Y",    IDC_RAD_AXIS3_Z,    "Button", BS_AUTORADIOBUTTON,                                6, 238,  96,  10
 
     // ---- Channel 4 ---------------------------------------------------------
-    GROUPBOX    "Channel 4",        IDC_STATIC,         4, 268, 178,  84
-    CONTROL     "Enable",           IDC_CHK_ENABLE4,    "Button", BS_AUTOCHECKBOX | WS_TABSTOP,                     10, 278,  50,  10
-    LTEXT       "Map Ch:",          IDC_STATIC,         10, 294,  36,  10
-    CONTROL     "",                 IDC_EDIT_CHANNEL4,  "CustEdit",       WS_TABSTOP,                               48, 292,  42,  12
-    CONTROL     "",                 IDC_SPIN_CHANNEL4,  "SpinnerControl", WS_TABSTOP,                               90, 292,   7,  12
-    CONTROL     "X  - side Y/Z",   IDC_RAD_AXIS4_X,    "Button", BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,       10, 308, 164,  10
-    CONTROL     "Y  - front X/Z",  IDC_RAD_AXIS4_Y,    "Button", BS_AUTORADIOBUTTON,                               10, 320, 164,  10
-    CONTROL     "Z  - top X/Y",    IDC_RAD_AXIS4_Z,    "Button", BS_AUTORADIOBUTTON,                               10, 332, 164,  10
+    GROUPBOX    "Channel 4",        IDC_STATIC,          2, 260, 104,  82
+    CONTROL     "Enable",           IDC_CHK_ENABLE4,    "Button", BS_AUTOCHECKBOX | WS_TABSTOP,                      6, 272,  50,  10
+    LTEXT       "Map Ch:",          IDC_STATIC,          6, 286,  32,  10
+    CONTROL     "",                 IDC_EDIT_CHANNEL4,  "CustEdit",       WS_TABSTOP,                               40, 284,  34,  12
+    CONTROL     "",                 IDC_SPIN_CHANNEL4,  "SpinnerControl", WS_TABSTOP,                               74, 284,   7,  12
+    CONTROL     "X  - side Y/Z",   IDC_RAD_AXIS4_X,    "Button", BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,        6, 300,  96,  10
+    CONTROL     "Y  - front X/Z",  IDC_RAD_AXIS4_Y,    "Button", BS_AUTORADIOBUTTON,                                6, 312,  96,  10
+    CONTROL     "Z  - top X/Y",    IDC_RAD_AXIS4_Z,    "Button", BS_AUTORADIOBUTTON,                                6, 324,  96,  10
 
     // ---- Global UV Transform -----------------------------------------------
-    GROUPBOX    "Global UV Transform", IDC_STATIC,      4, 356, 178,  82
-    LTEXT       "U Tile:",          IDC_STATIC,         10, 368,  36,  10
-    CONTROL     "",                 IDC_EDIT_UTILE,     "CustEdit",       WS_TABSTOP,                               48, 366,  46,  12
-    CONTROL     "",                 IDC_SPIN_UTILE,     "SpinnerControl", WS_TABSTOP,                               94, 366,   7,  12
-    LTEXT       "V Tile:",          IDC_STATIC,         10, 382,  36,  10
-    CONTROL     "",                 IDC_EDIT_VTILE,     "CustEdit",       WS_TABSTOP,                               48, 380,  46,  12
-    CONTROL     "",                 IDC_SPIN_VTILE,     "SpinnerControl", WS_TABSTOP,                               94, 380,   7,  12
-    LTEXT       "U Offset:",        IDC_STATIC,         10, 396,  38,  10
-    CONTROL     "",                 IDC_EDIT_UOFFSET,   "CustEdit",       WS_TABSTOP,                               48, 394,  46,  12
-    CONTROL     "",                 IDC_SPIN_UOFFSET,   "SpinnerControl", WS_TABSTOP,                               94, 394,   7,  12
-    LTEXT       "V Offset:",        IDC_STATIC,         10, 410,  38,  10
-    CONTROL     "",                 IDC_EDIT_VOFFSET,   "CustEdit",       WS_TABSTOP,                               48, 408,  46,  12
-    CONTROL     "",                 IDC_SPIN_VOFFSET,   "SpinnerControl", WS_TABSTOP,                               94, 408,   7,  12
-    CONTROL     "Flip U",           IDC_CHK_FLIPU,      "Button", BS_AUTOCHECKBOX | WS_GROUP | WS_TABSTOP,         10, 424,  40,  10
-    CONTROL     "Flip V",           IDC_CHK_FLIPV,      "Button", BS_AUTOCHECKBOX | WS_TABSTOP,                    56, 424,  40,  10
-    CONTROL     "Swap U/V",         IDC_CHK_SWAPUV,     "Button", BS_AUTOCHECKBOX | WS_TABSTOP,                   104, 424,  52,  10
+    GROUPBOX    "Global UV Transform", IDC_STATIC,       2, 346, 104,  80
+    LTEXT       "U Tile:",          IDC_STATIC,          6, 358,  32,  10
+    CONTROL     "",                 IDC_EDIT_UTILE,     "CustEdit",       WS_TABSTOP,                               40, 356,  34,  12
+    CONTROL     "",                 IDC_SPIN_UTILE,     "SpinnerControl", WS_TABSTOP,                               74, 356,   7,  12
+    LTEXT       "V Tile:",          IDC_STATIC,          6, 372,  32,  10
+    CONTROL     "",                 IDC_EDIT_VTILE,     "CustEdit",       WS_TABSTOP,                               40, 370,  34,  12
+    CONTROL     "",                 IDC_SPIN_VTILE,     "SpinnerControl", WS_TABSTOP,                               74, 370,   7,  12
+    LTEXT       "U Offset:",        IDC_STATIC,          6, 386,  34,  10
+    CONTROL     "",                 IDC_EDIT_UOFFSET,   "CustEdit",       WS_TABSTOP,                               40, 384,  34,  12
+    CONTROL     "",                 IDC_SPIN_UOFFSET,   "SpinnerControl", WS_TABSTOP,                               74, 384,   7,  12
+    LTEXT       "V Offset:",        IDC_STATIC,          6, 400,  34,  10
+    CONTROL     "",                 IDC_EDIT_VOFFSET,   "CustEdit",       WS_TABSTOP,                               40, 398,  34,  12
+    CONTROL     "",                 IDC_SPIN_VOFFSET,   "SpinnerControl", WS_TABSTOP,                               74, 398,   7,  12
+    CONTROL     "Flip U",           IDC_CHK_FLIPU,      "Button", BS_AUTOCHECKBOX | WS_GROUP | WS_TABSTOP,           6, 414,  28,  10
+    CONTROL     "Flip V",           IDC_CHK_FLIPV,      "Button", BS_AUTOCHECKBOX | WS_TABSTOP,                     36, 414,  28,  10
+    CONTROL     "Swap U/V",         IDC_CHK_SWAPUV,     "Button", BS_AUTOCHECKBOX | WS_TABSTOP,                     66, 414,  36,  10
 
     // ---- Blend Output ------------------------------------------------------
-    // Writes normalized abs(normal) components as UVW to a map channel.
-    // U=X weight, V=Y weight, W=Z weight. Use in materials for triplanar blend.
-    GROUPBOX    "Blend Output",     IDC_STATIC,          4, 444, 178,  56
-    CONTROL     "Enable",           IDC_CHK_ENABLE_BLEND,"Button", BS_AUTOCHECKBOX | WS_GROUP | WS_TABSTOP,        10, 456,  50,  10
-    LTEXT       "Channel:",         IDC_STATIC,         10, 470,  38,  10
-    CONTROL     "",                 IDC_EDIT_CHANNEL_BLEND, "CustEdit",       WS_TABSTOP,                          50, 468,  42,  12
-    CONTROL     "",                 IDC_SPIN_CHANNEL_BLEND, "SpinnerControl", WS_TABSTOP,                          92, 468,   7,  12
-    LTEXT       "Power:",           IDC_STATIC,         10, 484,  34,  10
-    CONTROL     "",                 IDC_EDIT_BLEND_POWER,   "CustEdit",       WS_TABSTOP,                          50, 482,  42,  12
-    CONTROL     "",                 IDC_SPIN_BLEND_POWER,   "SpinnerControl", WS_TABSTOP,                          92, 482,   7,  12
+    GROUPBOX    "Blend Output",     IDC_STATIC,          2, 430, 104,  70
+    CONTROL     "Enable",           IDC_CHK_ENABLE_BLEND,"Button", BS_AUTOCHECKBOX | WS_GROUP | WS_TABSTOP,          6, 442,  50,  10
+    LTEXT       "Channel:",         IDC_STATIC,          6, 456,  32,  10
+    CONTROL     "",                 IDC_EDIT_CHANNEL_BLEND, "CustEdit",       WS_TABSTOP,                           40, 454,  34,  12
+    CONTROL     "",                 IDC_SPIN_CHANNEL_BLEND, "SpinnerControl", WS_TABSTOP,                           74, 454,   7,  12
+    LTEXT       "Power:",           IDC_STATIC,          6, 470,  28,  10
+    CONTROL     "",                 IDC_EDIT_BLEND_POWER,   "CustEdit",       WS_TABSTOP,                           40, 468,  34,  12
+    CONTROL     "",                 IDC_SPIN_BLEND_POWER,   "SpinnerControl", WS_TABSTOP,                           74, 468,   7,  12
+    CONTROL     "Show Blend",       IDC_CHK_SHOW_BLEND,  "Button", BS_AUTOCHECKBOX | WS_TABSTOP,                     6, 484,  55,  10
 END
