@@ -1,13 +1,15 @@
 /*
     EZMultiPlanarUVW.cpp
-    3ds Max 2023 C++ SDK  —  OSM (object-space modifier)  —  .dlm
+    3ds Max 2023 C++ SDK  —  OSM modifier  —  .dlm
 
-    Ports the working EZ_MultiPlanarUVW.ms behaviour:
-        - Four independently-enabled planar UV projections
-        - Default channels 1/2/3/4 with X/Z/Y/Y axis defaults
-        - Normalised to object local bounds
-        - Global U/V tile, offset, flip, swap
-        - Automatic map-channel slot expansion
+    Six signed planar projections (X+/X-/Y+/Y-/Z+/Z-) written into grouped
+    map channels.  Multiple rows can share a channel; per-face normals decide
+    which projection wins.  Seam-split at projection boundaries.
+
+    Each row has its own U/V tile.  Global U/V offset + flip/swap applies after.
+
+    Blend output channel: per-vertex triplanar weights (R=X,G=Y,B=Z) for
+    material blending.  Optional viewport colour overlay via Display().
 */
 
 #include "resource.h"
@@ -23,73 +25,57 @@
 #include <utilapi.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <map>
+#include <unordered_map>
 #include <vector>
-
-// ---------------------------------------------------------------------------
-// Module handle
-// ---------------------------------------------------------------------------
 
 HINSTANCE hInstance = nullptr;
 
-// ---------------------------------------------------------------------------
-// Class ID  (matches the MAXScript version so scenes are compatible)
-// ---------------------------------------------------------------------------
-
 #define EZ_MULTIPLANAR_UVW_CLASS_ID Class_ID(0x6d2f3a11, 0x1e0b7c44)
 
-static const TCHAR* kPluginName    = _T("EZ Multi Planar UVW");
-static const TCHAR* kCategoryName  = _T("EZ Tools");
+static const TCHAR* kPluginName   = _T("EZ Multi Planar UVW");
+static const TCHAR* kCategoryName = _T("EZ Tools");
 
 // ---------------------------------------------------------------------------
-// Param block / param IDs
+// Param IDs  (6 rows × 5 params + global UV + seam options + blend output)
 // ---------------------------------------------------------------------------
 
 enum ParamBlockIDs { kMainPBlock = 0 };
 
 enum ParamIDs
 {
-    pb_enable1 = 0,
-    pb_channel1,
-    pb_axis1,
-
-    pb_enable2,
-    pb_channel2,
-    pb_axis2,
-
-    pb_enable3,
-    pb_channel3,
-    pb_axis3,
-
-    pb_enable4,
-    pb_channel4,
-    pb_axis4,
-
-    pb_uTile,
-    pb_vTile,
-    pb_uOffset,
-    pb_vOffset,
-
-    pb_flipU,
-    pb_flipV,
-    pb_swapUV,
-
-    pb_enableBlend,
-    pb_channelBlend,
-    pb_blendPower,
-    pb_showBlend
+    // Row 1
+    pb_en1 = 0, pb_ch1, pb_proj1, pb_uTile1, pb_vTile1,
+    // Row 2
+    pb_en2,     pb_ch2, pb_proj2, pb_uTile2, pb_vTile2,
+    // Row 3
+    pb_en3,     pb_ch3, pb_proj3, pb_uTile3, pb_vTile3,
+    // Row 4
+    pb_en4,     pb_ch4, pb_proj4, pb_uTile4, pb_vTile4,
+    // Row 5
+    pb_en5,     pb_ch5, pb_proj5, pb_uTile5, pb_vTile5,
+    // Row 6
+    pb_en6,     pb_ch6, pb_proj6, pb_uTile6, pb_vTile6,
+    // Global UV
+    pb_uOffset, pb_vOffset, pb_flipU, pb_flipV, pb_swapUV,
+    // Seam options
+    pb_normalThreshold, pb_mergeIslands, pb_parkNonMatching, pb_parkU, pb_parkV,
+    // Blend output
+    pb_enableBlend, pb_channelBlend, pb_blendPower, pb_showBlend
 };
 
-// Axis indices — 0-based, matches the dropdown order in the dialog
-enum AxisMode
-{
-    Axis_X = 0, // project onto Y/Z  -> U=Y, V=Z
-    Axis_Y = 1, // project onto X/Z  -> U=X, V=Z
-    Axis_Z = 2  // project onto X/Y  -> U=X, V=Y
-};
+// Row param base IDs (pb_en1 = 0, stride = 5)
+static const int kRowStride = 5;
+static inline ParamID RowEn   (int r) { return (ParamID)(pb_en1    + r * kRowStride); }
+static inline ParamID RowCh   (int r) { return (ParamID)(pb_ch1    + r * kRowStride); }
+static inline ParamID RowProj (int r) { return (ParamID)(pb_proj1  + r * kRowStride); }
+static inline ParamID RowUTile(int r) { return (ParamID)(pb_uTile1 + r * kRowStride); }
+static inline ParamID RowVTile(int r) { return (ParamID)(pb_vTile1 + r * kRowStride); }
 
 // ---------------------------------------------------------------------------
-// Forward declaration
+// Forward declarations
 // ---------------------------------------------------------------------------
 
 class EZMultiPlanarUVW;
@@ -103,18 +89,16 @@ class EZMultiPlanarUVWClassDesc : public ClassDesc2
 public:
     int          IsPublic()  override { return TRUE; }
     void*        Create(BOOL loading = FALSE) override;
-
-    const TCHAR* ClassName()     override { return kPluginName; }
+    const TCHAR* ClassName()             override { return kPluginName; }
     const TCHAR* NonLocalizedClassName() override { return kPluginName; }
-    SClass_ID    SuperClassID()  override { return OSM_CLASS_ID; }
-    Class_ID     ClassID()       override { return EZ_MULTIPLANAR_UVW_CLASS_ID; }
-    const TCHAR* Category()      override { return kCategoryName; }
-    const TCHAR* InternalName()  override { return _T("EZMultiPlanarUVW"); }
-    HINSTANCE    HInstance()     override { return hInstance; }
+    SClass_ID    SuperClassID()          override { return OSM_CLASS_ID; }
+    Class_ID     ClassID()               override { return EZ_MULTIPLANAR_UVW_CLASS_ID; }
+    const TCHAR* Category()              override { return kCategoryName; }
+    const TCHAR* InternalName()          override { return _T("EZMultiPlanarUVW"); }
+    HINSTANCE    HInstance()             override { return hInstance; }
 };
 
 static EZMultiPlanarUVWClassDesc g_EZMultiPlanarUVWDesc;
-
 ClassDesc2* GetEZMultiPlanarUVWDesc() { return &g_EZMultiPlanarUVWDesc; }
 
 // ---------------------------------------------------------------------------
@@ -128,9 +112,9 @@ public:
 
     struct BlendDisplayCache
     {
-        std::vector<Point3> verts;    // object-space positions
-        std::vector<Point3> colors;   // per-vertex (R=X weight, G=Y weight, B=Z weight)
-        std::vector<int>    indices;  // flat: 3 ints per triangle
+        std::vector<Point3> verts;
+        std::vector<Point3> colors;
+        std::vector<int>    indices;
         bool valid = false;
     };
     mutable BlendDisplayCache m_displayCache;
@@ -139,419 +123,457 @@ public:
     ~EZMultiPlanarUVW() override = default;
 
     // ---- Animatable --------------------------------------------------------
-
-    void DeleteThis() override { delete this; }
-
-    int          NumSubs()          override { return 1; }
-    Animatable*  SubAnim(int i)     override { return (i == 0) ? pblock : nullptr; }
-    TSTR         SubAnimName(int i, bool /*localized*/ = true) override
+    void        DeleteThis() override { delete this; }
+    int         NumSubs()    override { return 1; }
+    Animatable* SubAnim(int i) override { return (i == 0) ? pblock : nullptr; }
+    TSTR        SubAnimName(int i, bool = true) override
     {
         return (i == 0) ? TSTR(_T("Parameters")) : TSTR(_T(""));
     }
 
     // ---- ReferenceTarget ---------------------------------------------------
-
     RefTargetHandle Clone(RemapDir& remap) override
     {
-        EZMultiPlanarUVW* copy = new EZMultiPlanarUVW();
-        if (pblock)
-            copy->ReplaceReference(0, remap.CloneRef(pblock));
-        BaseClone(this, copy, remap);
-        return copy;
+        EZMultiPlanarUVW* c = new EZMultiPlanarUVW();
+        if (pblock) c->ReplaceReference(0, remap.CloneRef(pblock));
+        BaseClone(this, c, remap);
+        return c;
     }
-
-    int             NumRefs()             override { return 1; }
-    RefTargetHandle GetReference(int i)   override { return (i == 0) ? pblock : nullptr; }
-    void            SetReference(int i, RefTargetHandle rtarg) override
+    int             NumRefs()           override { return 1; }
+    RefTargetHandle GetReference(int i) override { return (i == 0) ? pblock : nullptr; }
+    void            SetReference(int i, RefTargetHandle r) override
     {
-        if (i == 0)
-            pblock = static_cast<IParamBlock2*>(rtarg);
+        if (i == 0) pblock = static_cast<IParamBlock2*>(r);
     }
-
-    RefResult NotifyRefChanged(
-        const Interval& /*changeInt*/,
-        RefTargetHandle /*hTarget*/,
-        PartID&         /*partID*/,
-        RefMessage       message,
-        BOOL             /*propagate*/) override
+    RefResult NotifyRefChanged(const Interval&, RefTargetHandle, PartID&,
+                               RefMessage msg, BOOL) override
     {
-        if (message == REFMSG_CHANGE)
+        if (msg == REFMSG_CHANGE)
             NotifyDependents(FOREVER, PART_TEXMAP, REFMSG_CHANGE);
         return REF_SUCCEED;
     }
 
-    // ---- IParamArray2 interface (for P_AUTO_CONSTRUCT) ---------------------
-
-    int           NumParamBlocks()             override { return 1; }
-    IParamBlock2* GetParamBlock(int i)         override { return (i == 0) ? pblock : nullptr; }
-    IParamBlock2* GetParamBlockByID(BlockID id) override
-    {
-        return (id == kMainPBlock) ? pblock : nullptr;
-    }
+    // ---- Param block access ------------------------------------------------
+    int           NumParamBlocks()              override { return 1; }
+    IParamBlock2* GetParamBlock(int i)          override { return (i == 0) ? pblock : nullptr; }
+    IParamBlock2* GetParamBlockByID(BlockID id) override { return (id == kMainPBlock) ? pblock : nullptr; }
 
     // ---- BaseObject --------------------------------------------------------
-
     CreateMouseCallBack* GetCreateMouseCallBack() override { return nullptr; }
-
-    const TCHAR* GetObjectName(bool /*localized*/) const override { return kPluginName; }
+    const TCHAR* GetObjectName(bool) const override { return kPluginName; }
 
     void BeginEditParams(IObjParam* ip, ULONG flags, Animatable* prev) override
     {
         g_EZMultiPlanarUVWDesc.BeginEditParams(ip, this, flags, prev);
     }
-
     void EndEditParams(IObjParam* ip, ULONG flags, Animatable* next) override
     {
         g_EZMultiPlanarUVWDesc.EndEditParams(ip, this, flags, next);
     }
 
     // ---- Viewport display --------------------------------------------------
-
-    void GetWorldBoundBox(TimeValue t, INode* inode, ViewExp* /*vp*/, Box3& box) override
+    void GetWorldBoundBox(TimeValue t, INode* inode, ViewExp*, Box3& box) override
     {
         if (!m_displayCache.valid) return;
         Matrix3 tm = inode->GetObjectTM(t);
-        for (const auto& v : m_displayCache.verts)
-            box += v * tm;
+        for (const auto& v : m_displayCache.verts) box += v * tm;
     }
 
-    int Display(TimeValue t, INode* inode, ViewExp* vpt, int /*flags*/) override
+    int Display(TimeValue t, INode* inode, ViewExp* vpt, int) override
     {
         if (!pblock || !m_displayCache.valid) return 0;
-
         BOOL show = FALSE;
         pblock->GetValue(pb_showBlend, t, show, FOREVER);
         if (!show) return 0;
 
         GraphicsWindow* gw = vpt->getGW();
         gw->setTransform(inode->GetObjectTM(t));
-
-        const DWORD savedLimits = gw->getRndLimits();
+        const DWORD saved = gw->getRndLimits();
         gw->setRndLimits(GW_Z_BUFFER | GW_FLAT);
 
-        const int numFaces = static_cast<int>(m_displayCache.indices.size()) / 3;
-        Point3 uvw[3] = { Point3(0,0,0), Point3(0,0,0), Point3(0,0,0) };
-
-        for (int f = 0; f < numFaces; ++f)
+        const int nf = (int)m_displayCache.indices.size() / 3;
+        Point3 uvw[3] = {};
+        for (int f = 0; f < nf; ++f)
         {
-            const int i0 = m_displayCache.indices[f * 3];
-            const int i1 = m_displayCache.indices[f * 3 + 1];
-            const int i2 = m_displayCache.indices[f * 3 + 2];
-
-            // Per-face average color (smooth per-vertex would need per-vertex GW calls)
+            const int i0 = m_displayCache.indices[f*3];
+            const int i1 = m_displayCache.indices[f*3+1];
+            const int i2 = m_displayCache.indices[f*3+2];
             const Point3 col = (m_displayCache.colors[i0] +
                                 m_displayCache.colors[i1] +
                                 m_displayCache.colors[i2]) / 3.0f;
-
             gw->setColor(FILL_COLOR, col.x, col.y, col.z);
-
-            Point3 pts[3] = {
-                m_displayCache.verts[i0],
-                m_displayCache.verts[i1],
-                m_displayCache.verts[i2]
-            };
+            Point3 pts[3] = { m_displayCache.verts[i0],
+                              m_displayCache.verts[i1],
+                              m_displayCache.verts[i2] };
             gw->triangle(pts, uvw);
         }
-
-        gw->setRndLimits(savedLimits);
+        gw->setRndLimits(saved);
         return 1;
     }
 
     // ---- Modifier ----------------------------------------------------------
-
     ChannelMask ChannelsUsed()   override { return GEOM_CHANNEL | TOPO_CHANNEL | TEXMAP_CHANNEL; }
     ChannelMask ChannelsChanged() override { return TEXMAP_CHANNEL; }
-
-    Class_ID InputType() override { return Class_ID(TRIOBJ_CLASS_ID, 0); }
+    Class_ID    InputType()      override { return Class_ID(TRIOBJ_CLASS_ID, 0); }
 
     Interval LocalValidity(TimeValue t) override
     {
-        Interval valid = FOREVER;
-        if (pblock)
-            pblock->GetValidity(t, valid);
-        return valid;
+        Interval v = FOREVER;
+        if (pblock) pblock->GetValidity(t, v);
+        return v;
     }
 
-    void ModifyObject(TimeValue t, ModContext& /*mc*/, ObjectState* os, INode* /*node*/) override
+    void ModifyObject(TimeValue t, ModContext&, ObjectState* os, INode*) override
     {
-        if (!os || !os->obj || !pblock)
-            return;
-
+        if (!os || !os->obj || !pblock) return;
         const Class_ID triID(TRIOBJ_CLASS_ID, 0);
-        if (!os->obj->CanConvertToType(triID))
-            return;
-
-        TriObject* triObj = static_cast<TriObject*>(os->obj->ConvertToType(t, triID));
-        if (!triObj)
-            return;
-
-        if (os->obj != triObj)
-            os->obj = triObj;
-
-        Mesh& mesh = triObj->GetMesh();
-        if (mesh.numVerts <= 0 || mesh.numFaces <= 0)
-            return;
-
-        ApplyMultiPlanarUVW(t, mesh);
-
+        if (!os->obj->CanConvertToType(triID)) return;
+        TriObject* tri = static_cast<TriObject*>(os->obj->ConvertToType(t, triID));
+        if (!tri) return;
+        if (os->obj != tri) os->obj = tri;
+        Mesh& mesh = tri->GetMesh();
+        if (mesh.numVerts <= 0 || mesh.numFaces <= 0) return;
+        ApplyAll(t, mesh);
         mesh.InvalidateGeomCache();
         mesh.InvalidateTopologyCache();
-        triObj->UpdateValidity(TEXMAP_CHAN_NUM, LocalValidity(t));
+        tri->UpdateValidity(TEXMAP_CHAN_NUM, LocalValidity(t));
     }
+
+private:
+    // ========================================================================
+    // Helpers
+    // ========================================================================
+
+    static int   ClampCh(int ch) { return std::clamp(ch, 1, 99); }
+    static float SafeRange(float v) { return (std::fabs(v) < 1e-6f) ? 1.0f : v; }
+
+    float  PBf(ParamID id, TimeValue t, float  def) const { float  v=def; if(pblock) pblock->GetValue(id,t,v,FOREVER); return v; }
+    int    PBi(ParamID id, TimeValue t, int    def) const { int    v=def; if(pblock) pblock->GetValue(id,t,v,FOREVER); return v; }
+    BOOL   PBb(ParamID id, TimeValue t, BOOL   def) const { BOOL   v=def; if(pblock) pblock->GetValue(id,t,v,FOREVER); return v; }
 
     // ========================================================================
-private:
-    // ---- Helpers -----------------------------------------------------------
+    // Projection geometry
+    // ========================================================================
 
-    static int ClampChannel(int ch)
+    // Signed projection direction (proj 1-6)
+    static Point3 ProjDir(int proj)
     {
-        return std::clamp(ch, 1, 99);
-    }
-
-    static float SafeRange(float v)
-    {
-        return (std::fabs(v) < 1e-6f) ? 1.0f : v;
-    }
-
-    static float  PBFloat(IParamBlock2* pb, ParamID id, TimeValue t, float  def)
-    {
-        float  v = def; if (pb) pb->GetValue(id, t, v, FOREVER); return v;
-    }
-    static int    PBInt  (IParamBlock2* pb, ParamID id, TimeValue t, int    def)
-    {
-        int    v = def; if (pb) pb->GetValue(id, t, v, FOREVER); return v;
-    }
-    static BOOL   PBBool (IParamBlock2* pb, ParamID id, TimeValue t, BOOL   def)
-    {
-        BOOL   v = def; if (pb) pb->GetValue(id, t, v, FOREVER); return v;
-    }
-
-    // ---- Geometry ----------------------------------------------------------
-
-    Box3 MeshBounds(const Mesh& mesh) const
-    {
-        Box3 b;
-        b.Init();
-        for (int i = 0; i < mesh.numVerts; ++i)
-            b += mesh.verts[i];
-        if (b.IsEmpty())
-        {
-            b += Point3(0, 0, 0);
-            b += Point3(1, 1, 1);
+        switch (proj) {
+        case 1: return Point3( 1, 0, 0); // X+
+        case 2: return Point3(-1, 0, 0); // X-
+        case 3: return Point3( 0, 1, 0); // Y+
+        case 4: return Point3( 0,-1, 0); // Y-
+        case 5: return Point3( 0, 0, 1); // Z+
+        case 6: return Point3( 0, 0,-1); // Z-
+        default: return Point3(0, 0, 1);
         }
-        return b;
     }
 
-    Point3 NormalizedPt(const Point3& p, const Point3& mn, const Point3& mx) const
+    // Normalised object-space position
+    Point3 NormPt(const Point3& p, const Point3& mn, const Point3& mx) const
     {
         return Point3(
             (p.x - mn.x) / SafeRange(mx.x - mn.x),
             (p.y - mn.y) / SafeRange(mx.y - mn.y),
-            (p.z - mn.z) / SafeRange(mx.z - mn.z)
-        );
+            (p.z - mn.z) / SafeRange(mx.z - mn.z));
     }
 
-    Point3 UVFromAxis(const Point3& p, const Point3& mn, const Point3& mx, int axis) const
+    // Raw UV from signed projection (matches MAXScript uvFromProjection)
+    Point3 UVFromProj(const Point3& p, const Point3& mn, const Point3& mx, int proj) const
     {
-        const Point3 n = NormalizedPt(p, mn, mx);
-        switch (axis)
-        {
-        case Axis_X: return Point3(n.y, n.z, 0.0f);  // side:  U=Y V=Z
-        case Axis_Y: return Point3(n.x, n.z, 0.0f);  // front: U=X V=Z
-        case Axis_Z: return Point3(n.x, n.y, 0.0f);  // top:   U=X V=Y
-        default:     return Point3(n.x, n.y, 0.0f);
+        const Point3 n = NormPt(p, mn, mx);
+        switch (proj) {
+        case 1: return Point3(        n.y,          n.z, 0.0f); // X+
+        case 2: return Point3(1.0f -  n.y,          n.z, 0.0f); // X-
+        case 3: return Point3(1.0f -  n.x,          n.z, 0.0f); // Y+
+        case 4: return Point3(        n.x,          n.z, 0.0f); // Y-
+        case 5: return Point3(        n.x,          n.y, 0.0f); // Z+
+        case 6: return Point3(        n.x,  1.0f -  n.y, 0.0f); // Z-
+        default: return Point3(n.x, n.y, 0.0f);
         }
     }
 
-    Point3 TransformUV(TimeValue t, const Point3& uv) const
+    // Per-row scale, then global offset/flip/swap
+    Point3 TransformUV(TimeValue t, const Point3& uv, float uTileRow, float vTileRow) const
     {
         float u = uv.x;
         float v = uv.y;
-
-        if (PBBool(pblock, pb_swapUV, t, FALSE)) std::swap(u, v);
-        if (PBBool(pblock, pb_flipU,  t, FALSE)) u = 1.0f - u;
-        if (PBBool(pblock, pb_flipV,  t, FALSE)) v = 1.0f - v;
-
+        if (PBb(pb_swapUV, t, FALSE)) std::swap(u, v);
+        if (PBb(pb_flipU,  t, FALSE)) u = 1.0f - u;
+        if (PBb(pb_flipV,  t, FALSE)) v = 1.0f - v;
         return Point3(
-            u * PBFloat(pblock, pb_uTile,   t, 1.0f) + PBFloat(pblock, pb_uOffset, t, 0.0f),
-            v * PBFloat(pblock, pb_vTile,   t, 1.0f) + PBFloat(pblock, pb_vOffset, t, 0.0f),
-            uv.z
-        );
+            u * uTileRow + PBf(pb_uOffset, t, 0.0f),
+            v * vTileRow + PBf(pb_vOffset, t, 0.0f),
+            0.0f);
     }
 
-    // ---- Map channel management --------------------------------------------
+    // Per-face normal (not averaged)
+    static Point3 FaceNorm(const Mesh& mesh, int f)
+    {
+        const Face& face = mesh.faces[f];
+        const Point3 e1 = mesh.verts[face.v[1]] - mesh.verts[face.v[0]];
+        const Point3 e2 = mesh.verts[face.v[2]] - mesh.verts[face.v[0]];
+        const Point3 n  = e1 ^ e2;
+        const float  len = Length(n);
+        return (len > 1e-6f) ? n / len : Point3(0, 0, 1);
+    }
+
+    // ========================================================================
+    // Map channel management
+    // ========================================================================
 
     void EnsureChannel(Mesh& mesh, int ch) const
     {
-        ch = ClampChannel(ch);
+        ch = ClampCh(ch);
         const int needed = ch + 1;
-        if (mesh.getNumMaps() < needed)
-            mesh.setNumMaps(needed, TRUE);
-        if (!mesh.mapSupport(ch))
-            mesh.setMapSupport(ch, TRUE);
+        if (mesh.getNumMaps() < needed) mesh.setNumMaps(needed, TRUE);
+        if (!mesh.mapSupport(ch)) mesh.setMapSupport(ch, TRUE);
     }
 
-    void BuildChannelTopology(Mesh& mesh, int ch) const
+    // ========================================================================
+    // Grouped channel writer
+    //
+    //  projList  — projection indices (1-6) assigned to this channel
+    //  uTiles / vTiles — per-projection tile values, same order as projList
+    // ========================================================================
+
+    void ApplyGroupedChannel(
+        TimeValue t, Mesh& mesh, int ch,
+        const std::vector<int>&   projList,
+        const std::vector<float>& uTiles,
+        const std::vector<float>& vTiles,
+        const Point3& mn, const Point3& mx) const
     {
-        ch = ClampChannel(ch);
+        if (projList.empty()) return;
+        ch = ClampCh(ch);
         EnsureChannel(mesh, ch);
 
-        mesh.setNumMapVerts(ch, mesh.numVerts,  FALSE);
-        mesh.setNumMapFaces(ch, mesh.numFaces,  FALSE);
+        const float threshold  = PBf(pb_normalThreshold, t, 0.001f);
+        const BOOL  doMerge    = PBb(pb_mergeIslands,    t, TRUE);
+        const BOOL  doPark     = PBb(pb_parkNonMatching, t, TRUE);
+        const float parkU_val  = PBf(pb_parkU,           t, -1.0f);
+        const float parkV_val  = PBf(pb_parkV,           t, -1.0f);
 
-        MeshMap& map = mesh.Map(ch);
+        // key → 0-based mapVert index
+        std::unordered_map<int64_t, int> keyToVert;
+        std::vector<Point3> mapVerts;
+        std::vector<std::array<int,3>> mapFaces(mesh.numFaces);
+
+        auto getOrAdd = [&](int64_t key, const Point3& uv) -> int
+        {
+            auto it = keyToVert.find(key);
+            if (it != keyToVert.end()) return it->second;
+            int idx = (int)mapVerts.size();
+            mapVerts.push_back(uv);
+            keyToVert[key] = idx;
+            return idx;
+        };
+
         for (int f = 0; f < mesh.numFaces; ++f)
         {
-            const Face& face = mesh.faces[f];
-            map.tf[f].t[0] = face.v[0];
-            map.tf[f].t[1] = face.v[1];
-            map.tf[f].t[2] = face.v[2];
+            const Point3 fn = FaceNorm(mesh, f);
+            const Face&  fc = mesh.faces[f];
+
+            // Choose best projection for this face
+            int   bestProjIdx = -1;
+            float bestDot     = -2.0f;
+            for (int pi = 0; pi < (int)projList.size(); ++pi)
+            {
+                float d = DotProd(fn, ProjDir(projList[pi]));
+                if (d > bestDot) { bestDot = d; bestProjIdx = pi; }
+            }
+
+            const bool parked = (bestProjIdx < 0) ||
+                                (doPark && bestDot <= threshold);
+
+            for (int c = 0; c < 3; ++c)
+            {
+                const int mv = fc.v[c]; // mesh vert index
+                int64_t key;
+                Point3  uv;
+
+                if (parked)
+                {
+                    key = doMerge
+                        ? (int64_t)0 * 2000000LL + mv
+                        : (int64_t)(-1) * 2000000LL + (int64_t)(f * 3 + c);
+                    uv = Point3(parkU_val, parkV_val, 0.0f);
+                }
+                else
+                {
+                    const int   pi   = projList[bestProjIdx];
+                    const float ut   = uTiles[bestProjIdx];
+                    const float vt   = vTiles[bestProjIdx];
+                    const Point3 raw = UVFromProj(mesh.verts[mv], mn, mx, pi);
+                    uv  = TransformUV(t, raw, ut, vt);
+                    key = doMerge
+                        ? (int64_t)pi * 2000000LL + mv
+                        : (int64_t)(f * 3 + c + 1) * 10000LL;
+                }
+                mapFaces[f][c] = getOrAdd(key, uv);
+            }
+        }
+
+        if (mapVerts.empty())
+        {
+            mapVerts.push_back(Point3(0, 0, 0));
+            for (auto& mf : mapFaces) mf = {0, 0, 0};
+        }
+
+        mesh.setNumMapVerts(ch, (int)mapVerts.size(), FALSE);
+        mesh.setNumMapFaces(ch, mesh.numFaces,        FALSE);
+        MeshMap& map = mesh.Map(ch);
+        for (int i = 0; i < (int)mapVerts.size(); ++i)
+            map.tv[i] = mapVerts[i];
+        for (int f = 0; f < mesh.numFaces; ++f)
+        {
+            map.tf[f].t[0] = mapFaces[f][0];
+            map.tf[f].t[1] = mapFaces[f][1];
+            map.tf[f].t[2] = mapFaces[f][2];
         }
     }
 
-    void ApplyPlanarChannel(
-        TimeValue t, Mesh& mesh, int ch, int axis,
-        const Point3& mn, const Point3& mx) const
+    // ========================================================================
+    // Blend output channel
+    // ========================================================================
+
+    void ComputeVertexNormals(const Mesh& mesh, std::vector<Point3>& out) const
     {
-        ch = ClampChannel(ch);
-        BuildChannelTopology(mesh, ch);
-
-        MeshMap& map = mesh.Map(ch);
-        for (int v = 0; v < mesh.numVerts; ++v)
-            map.tv[v] = TransformUV(t, UVFromAxis(mesh.verts[v], mn, mx, axis));
+        out.assign(mesh.numVerts, Point3(0, 0, 0));
+        for (int f = 0; f < mesh.numFaces; ++f)
+        {
+            const Point3 fn = FaceNorm(mesh, f);
+            const Face& fc  = mesh.faces[f];
+            out[fc.v[0]] += fn;
+            out[fc.v[1]] += fn;
+            out[fc.v[2]] += fn;
+        }
+        for (auto& n : out)
+        {
+            float len = Length(n);
+            n = (len > 1e-6f) ? n / len : Point3(0, 0, 1);
+        }
     }
-
-    // ---- Display cache population ------------------------------------------
 
     void PopulateDisplayCache(const Mesh& mesh, TimeValue t) const
     {
-        const float power = std::max(0.001f, PBFloat(pblock, pb_blendPower, t, 1.0f));
-
+        const float power = std::max(0.001f, PBf(pb_blendPower, t, 1.0f));
         std::vector<Point3> normals;
         ComputeVertexNormals(mesh, normals);
 
         m_displayCache.verts.assign(mesh.verts, mesh.verts + mesh.numVerts);
         m_displayCache.colors.resize(mesh.numVerts);
-
         for (int v = 0; v < mesh.numVerts; ++v)
         {
             const Point3& n = normals[v];
             float wx = std::pow(std::fabs(n.x), power);
             float wy = std::pow(std::fabs(n.y), power);
             float wz = std::pow(std::fabs(n.z), power);
-            const float sum = wx + wy + wz;
-            if (sum > 1e-6f) { wx /= sum; wy /= sum; wz /= sum; }
+            const float s = wx + wy + wz;
+            if (s > 1e-6f) { wx/=s; wy/=s; wz/=s; }
             m_displayCache.colors[v] = Point3(wx, wy, wz);
         }
-
         m_displayCache.indices.resize(mesh.numFaces * 3);
         for (int f = 0; f < mesh.numFaces; ++f)
         {
-            m_displayCache.indices[f * 3]     = mesh.faces[f].v[0];
-            m_displayCache.indices[f * 3 + 1] = mesh.faces[f].v[1];
-            m_displayCache.indices[f * 3 + 2] = mesh.faces[f].v[2];
+            m_displayCache.indices[f*3]   = mesh.faces[f].v[0];
+            m_displayCache.indices[f*3+1] = mesh.faces[f].v[1];
+            m_displayCache.indices[f*3+2] = mesh.faces[f].v[2];
         }
-
         m_displayCache.valid = true;
-    }
-
-    // ---- Blend output ------------------------------------------------------
-
-    void ComputeVertexNormals(const Mesh& mesh, std::vector<Point3>& out) const
-    {
-        out.assign(mesh.numVerts, Point3(0.0f, 0.0f, 0.0f));
-
-        for (int f = 0; f < mesh.numFaces; ++f)
-        {
-            const Face& face = mesh.faces[f];
-            const Point3& p0 = mesh.verts[face.v[0]];
-            const Point3& p1 = mesh.verts[face.v[1]];
-            const Point3& p2 = mesh.verts[face.v[2]];
-
-            const Point3 edge1 = p1 - p0;
-            const Point3 edge2 = p2 - p0;
-            const Point3 faceNorm = Normalize(edge1 ^ edge2);
-
-            out[face.v[0]] += faceNorm;
-            out[face.v[1]] += faceNorm;
-            out[face.v[2]] += faceNorm;
-        }
-
-        for (auto& n : out)
-        {
-            const float len = Length(n);
-            n = (len > 1e-6f) ? (n / len) : Point3(0.0f, 0.0f, 1.0f);
-        }
     }
 
     void ApplyBlendChannel(TimeValue t, Mesh& mesh) const
     {
-        const int   ch    = ClampChannel(PBInt  (pblock, pb_channelBlend, t, 10));
-        const float power = std::max(0.001f, PBFloat(pblock, pb_blendPower,   t,  1.0f));
+        const int   ch    = ClampCh(PBi(pb_channelBlend, t, 10));
+        const float power = std::max(0.001f, PBf(pb_blendPower, t, 1.0f));
 
         std::vector<Point3> normals;
         ComputeVertexNormals(mesh, normals);
-
-        BuildChannelTopology(mesh, ch);
+        EnsureChannel(mesh, ch);
+        mesh.setNumMapVerts(ch, mesh.numVerts, FALSE);
+        mesh.setNumMapFaces(ch, mesh.numFaces, FALSE);
         MeshMap& map = mesh.Map(ch);
-
+        for (int f = 0; f < mesh.numFaces; ++f)
+        {
+            map.tf[f].t[0] = mesh.faces[f].v[0];
+            map.tf[f].t[1] = mesh.faces[f].v[1];
+            map.tf[f].t[2] = mesh.faces[f].v[2];
+        }
         for (int v = 0; v < mesh.numVerts; ++v)
         {
             const Point3& n = normals[v];
             float wx = std::pow(std::fabs(n.x), power);
             float wy = std::pow(std::fabs(n.y), power);
             float wz = std::pow(std::fabs(n.z), power);
-            const float sum = wx + wy + wz;
-            if (sum > 1e-6f) { wx /= sum; wy /= sum; wz /= sum; }
+            const float s = wx + wy + wz;
+            if (s > 1e-6f) { wx/=s; wy/=s; wz/=s; }
             map.tv[v] = Point3(wx, wy, wz);
         }
     }
 
-    // ---- Top-level apply ---------------------------------------------------
+    // ========================================================================
+    // Top-level apply
+    // ========================================================================
 
-    void ApplyMultiPlanarUVW(TimeValue t, Mesh& mesh) const
+    void ApplyAll(TimeValue t, Mesh& mesh) const
     {
-        const Box3   bounds = MeshBounds(mesh);
-        const Point3 mn     = bounds.Min();
-        const Point3 mx     = bounds.Max();
+        // Collect enabled rows
+        struct RowInfo { int ch; int proj; float ut; float vt; };
+        std::vector<RowInfo> rows;
+        for (int r = 0; r < 6; ++r)
+        {
+            BOOL en = FALSE;
+            pblock->GetValue(RowEn(r), t, en, FOREVER);
+            if (!en) continue;
+            int   ch   = ClampCh(PBi(RowCh(r),   t, r < 2 ? 1 : r < 4 ? 2 : 3));
+            int   proj = std::clamp(PBi(RowProj(r), t, r + 1), 1, 6);
+            float ut   = PBf(RowUTile(r), t, 1.0f);
+            float vt   = PBf(RowVTile(r), t, 1.0f);
+            rows.push_back({ch, proj, ut, vt});
+        }
 
-        // Read all params up front
-        const BOOL en1  = PBBool(pblock, pb_enable1, t, TRUE);
-        const BOOL en2  = PBBool(pblock, pb_enable2, t, TRUE);
-        const BOOL en3  = PBBool(pblock, pb_enable3, t, TRUE);
-        const BOOL en4  = PBBool(pblock, pb_enable4, t, TRUE);
+        // Group rows by map channel
+        std::map<int, std::vector<int>> chToRows; // ch → indices into rows
+        for (int i = 0; i < (int)rows.size(); ++i)
+            chToRows[rows[i].ch].push_back(i);
 
-        const int  ch1  = ClampChannel(PBInt(pblock, pb_channel1, t, 1));
-        const int  ch2  = ClampChannel(PBInt(pblock, pb_channel2, t, 2));
-        const int  ch3  = ClampChannel(PBInt(pblock, pb_channel3, t, 3));
-        const int  ch4  = ClampChannel(PBInt(pblock, pb_channel4, t, 4));
+        // Compute mesh bounds
+        Box3 bounds;
+        bounds.Init();
+        for (int i = 0; i < mesh.numVerts; ++i) bounds += mesh.verts[i];
+        if (bounds.IsEmpty()) { bounds += Point3(0,0,0); bounds += Point3(1,1,1); }
+        const Point3 mn = bounds.Min();
+        const Point3 mx = bounds.Max();
 
-        const int  ax1  = std::clamp(PBInt(pblock, pb_axis1, t, Axis_X), 0, 2);
-        const int  ax2  = std::clamp(PBInt(pblock, pb_axis2, t, Axis_Z), 0, 2);
-        const int  ax3  = std::clamp(PBInt(pblock, pb_axis3, t, Axis_Y), 0, 2);
-        const int  ax4  = std::clamp(PBInt(pblock, pb_axis4, t, Axis_Y), 0, 2);
-
-        const BOOL enBlend  = PBBool(pblock, pb_enableBlend, t, FALSE);
-        const int  chBlend  = ClampChannel(PBInt(pblock, pb_channelBlend, t, 10));
-        const BOOL showBlend = PBBool(pblock, pb_showBlend,  t, FALSE);
-
-        // Pre-expand map table to the highest channel needed in one call
+        // Pre-expand map table
         int highest = 1;
-        if (en1)     highest = std::max(highest, ch1);
-        if (en2)     highest = std::max(highest, ch2);
-        if (en3)     highest = std::max(highest, ch3);
-        if (en4)     highest = std::max(highest, ch4);
-        if (enBlend) highest = std::max(highest, chBlend);
-        EnsureChannel(mesh, ClampChannel(highest));
+        for (auto& [ch, _] : chToRows) highest = std::max(highest, ch);
+        EnsureChannel(mesh, ClampCh(highest));
 
-        if (en1)      ApplyPlanarChannel(t, mesh, ch1, ax1, mn, mx);
-        if (en2)      ApplyPlanarChannel(t, mesh, ch2, ax2, mn, mx);
-        if (en3)      ApplyPlanarChannel(t, mesh, ch3, ax3, mn, mx);
-        if (en4)      ApplyPlanarChannel(t, mesh, ch4, ax4, mn, mx);
-        if (enBlend)  ApplyBlendChannel(t, mesh);
+        // Write each channel group
+        for (auto& [ch, rowIdxs] : chToRows)
+        {
+            std::vector<int>   projs;
+            std::vector<float> uts, vts;
+            for (int ri : rowIdxs)
+            {
+                projs.push_back(rows[ri].proj);
+                uts.push_back(rows[ri].ut);
+                vts.push_back(rows[ri].vt);
+            }
+            ApplyGroupedChannel(t, mesh, ch, projs, uts, vts, mn, mx);
+        }
 
-        // Populate display cache whenever Show Blend is on.
-        // Done last so it shares the already-modified mesh topology.
+        // Blend output channel
+        const BOOL enBlend  = PBb(pb_enableBlend, t, FALSE);
+        const BOOL showBlend = PBb(pb_showBlend,  t, FALSE);
+        if (enBlend)
+        {
+            const int blCh = ClampCh(PBi(pb_channelBlend, t, 10));
+            EnsureChannel(mesh, blCh);
+            ApplyBlendChannel(t, mesh);
+        }
         if (showBlend)
             PopulateDisplayCache(mesh, t);
         else
@@ -563,162 +585,103 @@ private:
 // ClassDesc2::Create
 // ---------------------------------------------------------------------------
 
-void* EZMultiPlanarUVWClassDesc::Create(BOOL /*loading*/)
-{
-    return new EZMultiPlanarUVW();
-}
+void* EZMultiPlanarUVWClassDesc::Create(BOOL) { return new EZMultiPlanarUVW(); }
 
 // ---------------------------------------------------------------------------
 // ParamBlockDesc2
-// Axis selection uses TYPE_RADIO (3 radio buttons per channel).
-// Spinners use paired CustEdit + SpinnerControl IDs.
 // ---------------------------------------------------------------------------
+
+// Macro helpers to reduce repetition for each row
+#define ROW_PARAMS(N, defCh, defProj)                                                   \
+    pb_en##N,    _T("en")   #N, TYPE_BOOL,  P_ANIMATABLE, IDS_EN##N,                   \
+        p_default, TRUE,                                                                 \
+        p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_EN##N,                                        \
+    p_end,                                                                               \
+    pb_ch##N,    _T("ch")   #N, TYPE_INT,   P_ANIMATABLE, IDS_CH##N,                   \
+        p_default, defCh,  p_range, 1, 99,                                              \
+        p_ui, TYPE_SPINNER, EDITTYPE_INT,   IDC_EDIT_CH##N,    IDC_SPIN_CH##N,    SPIN_AUTOSCALE, \
+    p_end,                                                                               \
+    pb_proj##N,  _T("proj") #N, TYPE_INT,   P_ANIMATABLE, IDS_PR##N,                   \
+        p_default, defProj, p_range, 1, 6,                                              \
+        p_ui, TYPE_SPINNER, EDITTYPE_INT,   IDC_EDIT_PR##N,    IDC_SPIN_PR##N,    SPIN_AUTOSCALE, \
+    p_end,                                                                               \
+    pb_uTile##N, _T("ut")   #N, TYPE_FLOAT, P_ANIMATABLE, IDS_UT##N,                   \
+        p_default, 1.0f,   p_range, -9999.0f, 9999.0f,                                 \
+        p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_UT##N,    IDC_SPIN_UT##N,    SPIN_AUTOSCALE, \
+    p_end,                                                                               \
+    pb_vTile##N, _T("vt")   #N, TYPE_FLOAT, P_ANIMATABLE, IDS_VT##N,                   \
+        p_default, 1.0f,   p_range, -9999.0f, 9999.0f,                                 \
+        p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_VT##N,    IDC_SPIN_VT##N,    SPIN_AUTOSCALE, \
+    p_end,
 
 static ParamBlockDesc2 g_MainPBlock
 (
-    kMainPBlock,
-    _T("params"),
-    IDS_PARAMS,
-    &g_EZMultiPlanarUVWDesc,
+    kMainPBlock, _T("params"), IDS_PARAMS, &g_EZMultiPlanarUVWDesc,
     P_AUTO_CONSTRUCT | P_AUTO_UI,
-    0,                          // P_AUTO_CONSTRUCT ref index
-
-    // P_AUTO_UI args: dialog ID, title string, flags, appendRollout, dlgProc
+    0,
     IDD_PANEL, IDS_PARAMS, 0, 0, nullptr,
 
-    // ---- Channel 1 ---------------------------------------------------------
-    pb_enable1,   _T("enable1"),  TYPE_BOOL,  P_ANIMATABLE, IDS_ENABLE1,
-        p_default, TRUE,
-        p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_ENABLE1,
-    p_end,
+    // Axis-pair defaults: rows 1-2 on ch1 (X+/X-), 3-4 on ch2 (Y+/Y-), 5-6 on ch3 (Z+/Z-)
+    ROW_PARAMS(1, 1, 1)
+    ROW_PARAMS(2, 1, 2)
+    ROW_PARAMS(3, 2, 3)
+    ROW_PARAMS(4, 2, 4)
+    ROW_PARAMS(5, 3, 5)
+    ROW_PARAMS(6, 3, 6)
 
-    pb_channel1,  _T("channel1"), TYPE_INT,   P_ANIMATABLE, IDS_CHANNEL1,
-        p_default, 1,
-        p_range, 1, 99,
-        p_ui, TYPE_SPINNER, EDITTYPE_INT, IDC_EDIT_CHANNEL1, IDC_SPIN_CHANNEL1, SPIN_AUTOSCALE,
-    p_end,
-
-    pb_axis1,     _T("axis1"),    TYPE_INT,   P_ANIMATABLE, IDS_AXIS1,
-        p_default, Axis_X,
-        p_range, 0, 2,
-        p_ui, TYPE_RADIO, 3, IDC_RAD_AXIS1_X, IDC_RAD_AXIS1_Y, IDC_RAD_AXIS1_Z,
-    p_end,
-
-    // ---- Channel 2 ---------------------------------------------------------
-    pb_enable2,   _T("enable2"),  TYPE_BOOL,  P_ANIMATABLE, IDS_ENABLE2,
-        p_default, TRUE,
-        p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_ENABLE2,
-    p_end,
-
-    pb_channel2,  _T("channel2"), TYPE_INT,   P_ANIMATABLE, IDS_CHANNEL2,
-        p_default, 2,
-        p_range, 1, 99,
-        p_ui, TYPE_SPINNER, EDITTYPE_INT, IDC_EDIT_CHANNEL2, IDC_SPIN_CHANNEL2, SPIN_AUTOSCALE,
-    p_end,
-
-    pb_axis2,     _T("axis2"),    TYPE_INT,   P_ANIMATABLE, IDS_AXIS2,
-        p_default, Axis_Z,
-        p_range, 0, 2,
-        p_ui, TYPE_RADIO, 3, IDC_RAD_AXIS2_X, IDC_RAD_AXIS2_Y, IDC_RAD_AXIS2_Z,
-    p_end,
-
-    // ---- Channel 3 ---------------------------------------------------------
-    pb_enable3,   _T("enable3"),  TYPE_BOOL,  P_ANIMATABLE, IDS_ENABLE3,
-        p_default, TRUE,
-        p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_ENABLE3,
-    p_end,
-
-    pb_channel3,  _T("channel3"), TYPE_INT,   P_ANIMATABLE, IDS_CHANNEL3,
-        p_default, 3,
-        p_range, 1, 99,
-        p_ui, TYPE_SPINNER, EDITTYPE_INT, IDC_EDIT_CHANNEL3, IDC_SPIN_CHANNEL3, SPIN_AUTOSCALE,
-    p_end,
-
-    pb_axis3,     _T("axis3"),    TYPE_INT,   P_ANIMATABLE, IDS_AXIS3,
-        p_default, Axis_Y,
-        p_range, 0, 2,
-        p_ui, TYPE_RADIO, 3, IDC_RAD_AXIS3_X, IDC_RAD_AXIS3_Y, IDC_RAD_AXIS3_Z,
-    p_end,
-
-    // ---- Channel 4 ---------------------------------------------------------
-    pb_enable4,   _T("enable4"),  TYPE_BOOL,  P_ANIMATABLE, IDS_ENABLE4,
-        p_default, TRUE,
-        p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_ENABLE4,
-    p_end,
-
-    pb_channel4,  _T("channel4"), TYPE_INT,   P_ANIMATABLE, IDS_CHANNEL4,
-        p_default, 4,
-        p_range, 1, 99,
-        p_ui, TYPE_SPINNER, EDITTYPE_INT, IDC_EDIT_CHANNEL4, IDC_SPIN_CHANNEL4, SPIN_AUTOSCALE,
-    p_end,
-
-    pb_axis4,     _T("axis4"),    TYPE_INT,   P_ANIMATABLE, IDS_AXIS4,
-        p_default, Axis_Y,
-        p_range, 0, 2,
-        p_ui, TYPE_RADIO, 3, IDC_RAD_AXIS4_X, IDC_RAD_AXIS4_Y, IDC_RAD_AXIS4_Z,
-    p_end,
-
-    // ---- Global UV ---------------------------------------------------------
-    pb_uTile,     _T("uTile"),    TYPE_FLOAT, P_ANIMATABLE, IDS_UTILE,
-        p_default, 1.0f,
-        p_range, -9999.0f, 9999.0f,
-        p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_UTILE, IDC_SPIN_UTILE, SPIN_AUTOSCALE,
-    p_end,
-
-    pb_vTile,     _T("vTile"),    TYPE_FLOAT, P_ANIMATABLE, IDS_VTILE,
-        p_default, 1.0f,
-        p_range, -9999.0f, 9999.0f,
-        p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_VTILE, IDC_SPIN_VTILE, SPIN_AUTOSCALE,
-    p_end,
-
-    pb_uOffset,   _T("uOffset"),  TYPE_FLOAT, P_ANIMATABLE, IDS_UOFFSET,
-        p_default, 0.0f,
-        p_range, -9999.0f, 9999.0f,
+    // Global UV
+    pb_uOffset, _T("uOffset"), TYPE_FLOAT, P_ANIMATABLE, IDS_UOFFSET,
+        p_default, 0.0f, p_range, -9999.0f, 9999.0f,
         p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_UOFFSET, IDC_SPIN_UOFFSET, SPIN_AUTOSCALE,
     p_end,
-
-    pb_vOffset,   _T("vOffset"),  TYPE_FLOAT, P_ANIMATABLE, IDS_VOFFSET,
-        p_default, 0.0f,
-        p_range, -9999.0f, 9999.0f,
+    pb_vOffset, _T("vOffset"), TYPE_FLOAT, P_ANIMATABLE, IDS_VOFFSET,
+        p_default, 0.0f, p_range, -9999.0f, 9999.0f,
         p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_VOFFSET, IDC_SPIN_VOFFSET, SPIN_AUTOSCALE,
     p_end,
-
-    pb_flipU,     _T("flipU"),    TYPE_BOOL,  P_ANIMATABLE, IDS_FLIPU,
-        p_default, FALSE,
-        p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_FLIPU,
+    pb_flipU,   _T("flipU"),   TYPE_BOOL,  P_ANIMATABLE, IDS_FLIPU,
+        p_default, FALSE, p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_FLIPU,
+    p_end,
+    pb_flipV,   _T("flipV"),   TYPE_BOOL,  P_ANIMATABLE, IDS_FLIPV,
+        p_default, FALSE, p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_FLIPV,
+    p_end,
+    pb_swapUV,  _T("swapUV"),  TYPE_BOOL,  P_ANIMATABLE, IDS_SWAPUV,
+        p_default, FALSE, p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_SWAPUV,
     p_end,
 
-    pb_flipV,     _T("flipV"),    TYPE_BOOL,  P_ANIMATABLE, IDS_FLIPV,
-        p_default, FALSE,
-        p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_FLIPV,
+    // Seam options
+    pb_normalThreshold, _T("normalThreshold"), TYPE_FLOAT, P_ANIMATABLE, IDS_NORMAL_THRESHOLD,
+        p_default, 0.001f, p_range, 0.0f, 1.0f,
+        p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_THRESHOLD, IDC_SPIN_THRESHOLD, SPIN_AUTOSCALE,
+    p_end,
+    pb_mergeIslands,    _T("mergeIslands"),    TYPE_BOOL,  P_ANIMATABLE, IDS_MERGE_ISLANDS,
+        p_default, TRUE, p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_MERGE,
+    p_end,
+    pb_parkNonMatching, _T("parkNonMatching"), TYPE_BOOL,  P_ANIMATABLE, IDS_PARK_NON_MATCHING,
+        p_default, TRUE, p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_PARK,
+    p_end,
+    pb_parkU, _T("parkU"), TYPE_FLOAT, P_ANIMATABLE, IDS_PARK_U,
+        p_default, -1.0f, p_range, -9999.0f, 9999.0f,
+        p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_PARKU, IDC_SPIN_PARKU, SPIN_AUTOSCALE,
+    p_end,
+    pb_parkV, _T("parkV"), TYPE_FLOAT, P_ANIMATABLE, IDS_PARK_V,
+        p_default, -1.0f, p_range, -9999.0f, 9999.0f,
+        p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_PARKV, IDC_SPIN_PARKV, SPIN_AUTOSCALE,
     p_end,
 
-    pb_swapUV,    _T("swapUV"),   TYPE_BOOL,  P_ANIMATABLE, IDS_SWAPUV,
-        p_default, FALSE,
-        p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_SWAPUV,
-    p_end,
-
-    // ---- Blend Output ------------------------------------------------------
+    // Blend output
     pb_enableBlend,  _T("enableBlend"),  TYPE_BOOL,  P_ANIMATABLE, IDS_ENABLE_BLEND,
-        p_default, FALSE,
-        p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_ENABLE_BLEND,
+        p_default, FALSE, p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_ENABLE_BLEND,
     p_end,
-
     pb_channelBlend, _T("channelBlend"), TYPE_INT,   P_ANIMATABLE, IDS_CHANNEL_BLEND,
-        p_default, 10,
-        p_range, 1, 99,
+        p_default, 10, p_range, 1, 99,
         p_ui, TYPE_SPINNER, EDITTYPE_INT, IDC_EDIT_CHANNEL_BLEND, IDC_SPIN_CHANNEL_BLEND, SPIN_AUTOSCALE,
     p_end,
-
     pb_blendPower,   _T("blendPower"),   TYPE_FLOAT, P_ANIMATABLE, IDS_BLEND_POWER,
-        p_default, 1.0f,
-        p_range, 0.001f, 32.0f,
+        p_default, 1.0f, p_range, 0.001f, 32.0f,
         p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_BLEND_POWER, IDC_SPIN_BLEND_POWER, SPIN_AUTOSCALE,
     p_end,
-
     pb_showBlend,    _T("showBlend"),    TYPE_BOOL,  P_ANIMATABLE, IDS_SHOW_BLEND,
-        p_default, FALSE,
-        p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_SHOW_BLEND,
+        p_default, FALSE, p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_SHOW_BLEND,
     p_end,
 
     p_end
@@ -728,7 +691,7 @@ static ParamBlockDesc2 g_MainPBlock
 // DLL entry points
 // ---------------------------------------------------------------------------
 
-BOOL WINAPI DllMain(HINSTANCE hinstDLL, ULONG fdwReason, LPVOID /*lpvReserved*/)
+BOOL WINAPI DllMain(HINSTANCE hinstDLL, ULONG fdwReason, LPVOID)
 {
     if (fdwReason == DLL_PROCESS_ATTACH)
     {
@@ -740,28 +703,9 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, ULONG fdwReason, LPVOID /*lpvReserved*/)
 
 extern "C"
 {
-    __declspec(dllexport) const TCHAR* LibDescription()
-    {
-        return _T("EZ Multi Planar UVW Modifier");
-    }
-
-    __declspec(dllexport) int LibNumberClasses()
-    {
-        return 1;
-    }
-
-    __declspec(dllexport) ClassDesc* LibClassDesc(int i)
-    {
-        return (i == 0) ? GetEZMultiPlanarUVWDesc() : nullptr;
-    }
-
-    __declspec(dllexport) ULONG LibVersion()
-    {
-        return VERSION_3DSMAX;
-    }
-
-    __declspec(dllexport) ULONG CanAutoDefer()
-    {
-        return 1;
-    }
+    __declspec(dllexport) const TCHAR* LibDescription()  { return _T("EZ Multi Planar UVW Modifier"); }
+    __declspec(dllexport) int          LibNumberClasses() { return 1; }
+    __declspec(dllexport) ClassDesc*   LibClassDesc(int i){ return (i==0) ? GetEZMultiPlanarUVWDesc() : nullptr; }
+    __declspec(dllexport) ULONG        LibVersion()       { return VERSION_3DSMAX; }
+    __declspec(dllexport) ULONG        CanAutoDefer()     { return 1; }
 }
