@@ -574,8 +574,82 @@ private:
 void* EZMultiPlanarUVWClassDesc::Create(BOOL) { return new EZMultiPlanarUVW(); }
 
 // ---------------------------------------------------------------------------
+// Direction dropdown DlgProc
+// proj params have no p_ui — the comboboxes are populated and synced here.
+// ---------------------------------------------------------------------------
+
+static const TCHAR* kDirLabels[6] = {
+    _T("X+"), _T("X-"), _T("Y+"), _T("Y-"), _T("Z+"), _T("Z-")
+};
+static const int kComboIDs[6] = {
+    IDC_COMBO_PR_1, IDC_COMBO_PR_2, IDC_COMBO_PR_3,
+    IDC_COMBO_PR_4, IDC_COMBO_PR_5, IDC_COMBO_PR_6
+};
+// proj param IDs — pb_proj1=2, then every 10
+static const ParamID kProjIDs[6] = {
+    (ParamID)pb_proj1, (ParamID)pb_proj2, (ParamID)pb_proj3,
+    (ParamID)pb_proj4, (ParamID)pb_proj5, (ParamID)pb_proj6
+};
+
+class EZRowDlgProc : public ParamMap2UserDlgProc
+{
+    static void FillCombo(HWND cb)
+    {
+        SendMessage(cb, CB_RESETCONTENT, 0, 0);
+        for (int i = 0; i < 6; ++i)
+            SendMessage(cb, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(kDirLabels[i]));
+    }
+
+    static void SyncCombo(HWND hDlg, int r, IParamMap2* map)
+    {
+        HWND cb = GetDlgItem(hDlg, kComboIDs[r]);
+        if (!cb || !map || !map->GetParamBlock()) return;
+        int val = r; // fallback = row index
+        map->GetParamBlock()->GetValue(kProjIDs[r], 0, val, FOREVER);
+        SendMessage(cb, CB_SETCURSEL, (WPARAM)std::clamp(val, 0, 5), 0);
+    }
+
+public:
+    INT_PTR DlgProc(TimeValue t, IParamMap2* map, HWND hWnd,
+                    UINT msg, WPARAM wParam, LPARAM /*lParam*/) override
+    {
+        switch (msg)
+        {
+        case WM_INITDIALOG:
+            for (int r = 0; r < 6; ++r)
+            {
+                HWND cb = GetDlgItem(hWnd, kComboIDs[r]);
+                if (cb) { FillCombo(cb); SyncCombo(hWnd, r, map); }
+            }
+            break;
+
+        case WM_COMMAND:
+            if (HIWORD(wParam) == CBN_SELCHANGE)
+            {
+                const int ctrlID = LOWORD(wParam);
+                for (int r = 0; r < 6; ++r)
+                {
+                    if (ctrlID != kComboIDs[r]) continue;
+                    HWND cb = GetDlgItem(hWnd, ctrlID);
+                    int sel = (int)SendMessage(cb, CB_GETCURSEL, 0, 0);
+                    if (sel >= 0 && map && map->GetParamBlock())
+                        map->GetParamBlock()->SetValue(kProjIDs[r], t, sel);
+                    return TRUE;
+                }
+            }
+            break;
+        }
+        return FALSE;
+    }
+
+    void DeleteThis() override {} // static instance — never heap-allocated
+};
+
+static EZRowDlgProc g_RowDlgProc;
+
+// ---------------------------------------------------------------------------
 // ParamBlockDesc2 macro — one row at a time
-// proj stored as 0-5 via TYPE_RADIO (X+ X- Y+ Y- Z+ Z-)
+// proj is TYPE_INT with no p_ui (handled by EZRowDlgProc combobox)
 // ---------------------------------------------------------------------------
 
 #define ROW_PARAMS(N, defCh, defProj)                                                            \
@@ -589,9 +663,6 @@ void* EZMultiPlanarUVWClassDesc::Create(BOOL) { return new EZMultiPlanarUVW(); }
     p_end,                                                                                        \
     pb_proj##N,  _T("proj"#N),  TYPE_INT,   P_ANIMATABLE, IDS_PR##N,                            \
         p_default, defProj, p_range, 0, 5,                                                       \
-        p_ui, TYPE_RADIO, 6,                                                                     \
-            IDC_RAD_PR_##N##_0, IDC_RAD_PR_##N##_1, IDC_RAD_PR_##N##_2,                        \
-            IDC_RAD_PR_##N##_3, IDC_RAD_PR_##N##_4, IDC_RAD_PR_##N##_5,                        \
     p_end,                                                                                        \
     pb_uTile##N, _T("ut"#N),    TYPE_FLOAT, P_ANIMATABLE, IDS_UT##N,                            \
         p_default, 1.0f, p_range, -9999.0f, 9999.0f,                                            \
@@ -624,7 +695,7 @@ static ParamBlockDesc2 g_MainPBlock
     kMainPBlock, _T("params"), IDS_PARAMS, &g_EZMultiPlanarUVWDesc,
     P_AUTO_CONSTRUCT | P_AUTO_UI,
     0,
-    IDD_PANEL, IDS_PARAMS, 0, 0, nullptr,
+    IDD_PANEL, IDS_PARAMS, 0, 0, &g_RowDlgProc,
 
     // Axis-pair defaults: 1-2 → ch1 (X+/X-), 3-4 → ch2 (Y+/Y-), 5-6 → ch3 (Z+/Z-)
     ROW_PARAMS(1, 1, 0)   // X+
