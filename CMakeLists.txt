@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-project(EZMultiPlanarUVW LANGUAGES CXX)
+project(EZ_BoxTri LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -11,21 +11,21 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(MAXSDK_DIR "C:/Program Files/Autodesk/3ds Max 2023 SDK/maxsdk"
     CACHE PATH "3ds Max SDK root folder")
 
-add_library(EZMultiPlanarUVW SHARED
-    src/EZMultiPlanarUVW.cpp
-    src/EZMultiPlanarUVW.rc
+add_library(EZ_BoxTri SHARED
+    src/EZ_BoxTri.cpp
+    src/EZ_BoxTri.rc
 )
 
-target_include_directories(EZMultiPlanarUVW PRIVATE
+target_include_directories(EZ_BoxTri PRIVATE
     "${MAXSDK_DIR}/include"
     src
 )
 
-target_link_directories(EZMultiPlanarUVW PRIVATE
+target_link_directories(EZ_BoxTri PRIVATE
     "${MAXSDK_DIR}/lib/x64/Release"
 )
 
-target_link_libraries(EZMultiPlanarUVW PRIVATE
+target_link_libraries(EZ_BoxTri PRIVATE
     core.lib
     geom.lib
     mesh.lib
@@ -33,7 +33,7 @@ target_link_libraries(EZMultiPlanarUVW PRIVATE
     paramblk2.lib
 )
 
-target_compile_definitions(EZMultiPlanarUVW PRIVATE
+target_compile_definitions(EZ_BoxTri PRIVATE
     UNICODE
     _UNICODE
     WIN32
@@ -41,13 +41,13 @@ target_compile_definitions(EZMultiPlanarUVW PRIVATE
     NOMINMAX
 )
 
-target_compile_options(EZMultiPlanarUVW PRIVATE
+target_compile_options(EZ_BoxTri PRIVATE
     /W3
     /EHsc
     /MD
 )
 
-set_target_properties(EZMultiPlanarUVW PROPERTIES
+set_target_properties(EZ_BoxTri PROPERTIES
     OUTPUT_NAME "EZ_BoxTri"
     SUFFIX ".dlm"
 )
