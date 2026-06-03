@@ -48,6 +48,6 @@ target_compile_options(EZMultiPlanarUVW PRIVATE
 )
 
 set_target_properties(EZMultiPlanarUVW PROPERTIES
-    OUTPUT_NAME "EZMultiPlanarUVW"
+    OUTPUT_NAME "EZ_BoxTri"
     SUFFIX ".dlm"
 )

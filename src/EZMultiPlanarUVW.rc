@@ -1,17 +1,20 @@
-// EZMultiPlanarUVW.rc  —  108 DU wide
+// EZ_BoxTri rollout  —  108 DU wide
 //
-// Per-row block layout (57 DU per row, rows start at group y=2+12=14):
-//   L1  base+0:  [x]N  Ch:[edit][spin]  [COMBOBOX  X+/X-/Y+/Y-/Z+/Z-]
-//   L2  base+13: UT:[edit][spin]  VT:[edit][spin]
-//   L3  base+27: UOff:[edit][spin]  VOff:[edit][spin]
-//   L4  base+41: [x]Flip U  [x]Flip V  [x]Swap
-//   DIV base+53: SS_GRAYRECT divider line
+// 4 layer groups (74 DU each) + Blend Math group + Output group.
 //
-//   Row bases: 14  71  128  185  242  299
-//   Proj rows group: y=2 h=358
-//   Seam Options:    y=364 h=68
-//   Blend Output:    y=436 h=72
-//   Dialog height:   512
+// Layer block (inside group, relative y):
+//   y+12: [x]Enable  Ch:[spin]  [Type combo]
+//   y+26: UT:[spin]   VT:[spin]
+//   y+40: UO:[spin]   VO:[spin]
+//   y+54: [x]FlipU    [x]FlipV
+//
+// Group y positions (absolute):
+//   Wall X:   y=2,   h=74    bottom=76
+//   Wall Y:   y=80,  h=74    bottom=154
+//   Floor:    y=158, h=74    bottom=232
+//   Ceiling:  y=236, h=74    bottom=310
+//   Blend:    y=316, h=98    bottom=414
+//   Output:   y=420, h=82    bottom=502
 
 #include <winresrc.h>
 #include "resource.h"
@@ -20,219 +23,181 @@ LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
 
 STRINGTABLE
 BEGIN
-    IDS_PARAMS  "Parameters"
-    IDS_EN1  "En1"   IDS_CH1  "Ch1"   IDS_PR1  "Proj1"
-    IDS_UT1  "UTile1"  IDS_VT1  "VTile1"  IDS_UOFF1 "UOff1"  IDS_VOFF1 "VOff1"
-    IDS_FLIPU1 "FlipU1"  IDS_FLIPV1 "FlipV1"  IDS_SWAP1 "Swap1"
-    IDS_EN2  "En2"   IDS_CH2  "Ch2"   IDS_PR2  "Proj2"
-    IDS_UT2  "UTile2"  IDS_VT2  "VTile2"  IDS_UOFF2 "UOff2"  IDS_VOFF2 "VOff2"
-    IDS_FLIPU2 "FlipU2"  IDS_FLIPV2 "FlipV2"  IDS_SWAP2 "Swap2"
-    IDS_EN3  "En3"   IDS_CH3  "Ch3"   IDS_PR3  "Proj3"
-    IDS_UT3  "UTile3"  IDS_VT3  "VTile3"  IDS_UOFF3 "UOff3"  IDS_VOFF3 "VOff3"
-    IDS_FLIPU3 "FlipU3"  IDS_FLIPV3 "FlipV3"  IDS_SWAP3 "Swap3"
-    IDS_EN4  "En4"   IDS_CH4  "Ch4"   IDS_PR4  "Proj4"
-    IDS_UT4  "UTile4"  IDS_VT4  "VTile4"  IDS_UOFF4 "UOff4"  IDS_VOFF4 "VOff4"
-    IDS_FLIPU4 "FlipU4"  IDS_FLIPV4 "FlipV4"  IDS_SWAP4 "Swap4"
-    IDS_EN5  "En5"   IDS_CH5  "Ch5"   IDS_PR5  "Proj5"
-    IDS_UT5  "UTile5"  IDS_VT5  "VTile5"  IDS_UOFF5 "UOff5"  IDS_VOFF5 "VOff5"
-    IDS_FLIPU5 "FlipU5"  IDS_FLIPV5 "FlipV5"  IDS_SWAP5 "Swap5"
-    IDS_EN6  "En6"   IDS_CH6  "Ch6"   IDS_PR6  "Proj6"
-    IDS_UT6  "UTile6"  IDS_VT6  "VTile6"  IDS_UOFF6 "UOff6"  IDS_VOFF6 "VOff6"
-    IDS_FLIPU6 "FlipU6"  IDS_FLIPV6 "FlipV6"  IDS_SWAP6 "Swap6"
-    IDS_THRESH  "Normal Threshold"
-    IDS_MERGE   "Merge Islands"
-    IDS_PARK_NM "Park Non-Matching"
-    IDS_PARKU   "Park U"
-    IDS_PARKV   "Park V"
-    IDS_EN_BLEND "Enable Blend"
-    IDS_CH_BLEND "Blend Channel"
-    IDS_POWER    "Blend Power"
-    IDS_SHOW     "Show Blend"
+    IDS_PARAMS        "Parameters"
+
+    IDS_EN1   "EnableX"   IDS_CH1  "ChX"   IDS_TYPE1 "TypeX"
+    IDS_UT1   "UTileX"    IDS_VT1  "VTileX"
+    IDS_UOFF1 "UOffX"     IDS_VOFF1 "VOffX"
+    IDS_FLIPU1 "FlipUX"   IDS_FLIPV1 "FlipVX"
+
+    IDS_EN2   "EnableY"   IDS_CH2  "ChY"   IDS_TYPE2 "TypeY"
+    IDS_UT2   "UTileY"    IDS_VT2  "VTileY"
+    IDS_UOFF2 "UOffY"     IDS_VOFF2 "VOffY"
+    IDS_FLIPU2 "FlipUY"   IDS_FLIPV2 "FlipVY"
+
+    IDS_EN3   "EnableF"   IDS_CH3  "ChF"   IDS_TYPE3 "TypeF"
+    IDS_UT3   "UTileF"    IDS_VT3  "VTileF"
+    IDS_UOFF3 "UOffF"     IDS_VOFF3 "VOffF"
+    IDS_FLIPU3 "FlipUF"   IDS_FLIPV3 "FlipVF"
+
+    IDS_EN4   "EnableC"   IDS_CH4  "ChC"   IDS_TYPE4 "TypeC"
+    IDS_UT4   "UTileC"    IDS_VT4  "VTileC"
+    IDS_UOFF4 "UOffC"     IDS_VOFF4 "VOffC"
+    IDS_FLIPU4 "FlipUC"   IDS_FLIPV4 "FlipVC"
+
+    IDS_SHARP        "Sharp"
+    IDS_INVERTZ      "InvertZ"
+    IDS_WALLXBIAS    "WallXBias"
+    IDS_WALLYBIAS    "WallYBias"
+    IDS_FLOORBIAS    "FloorBias"
+    IDS_CEILBIAS     "CeilingBias"
+    IDS_FLOORSTART   "FloorStart"
+    IDS_CEILSTART    "CeilingStart"
+    IDS_HARDDOM      "HardDominant"
+    IDS_HARDTHRESH   "HardThreshold"
+
+    IDS_BLENDCH      "BlendChannel"
+    IDS_PREVIEWCH    "PreviewChannel"
+    IDS_PREVIEWMODE  "PreviewMode"
+    IDS_SHOWBLEND    "ShowBlend"
+    IDS_SIGNEDFIX    "SignedAxisFix"
 END
 
-IDD_PANEL DIALOG 0, 0, 108, 512
+IDD_PANEL DIALOG 0, 0, 108, 502
 STYLE DS_SETFONT | WS_CHILD | WS_VISIBLE
 FONT 8, "MS Sans Serif"
 BEGIN
-    GROUPBOX "Projection Rows", IDC_STATIC, 2, 2, 104, 358
+    // ============================================================  WALL X  y=2
+    GROUPBOX "Wall X", IDC_STATIC, 2, 2, 104, 74
+    CONTROL  "En",  IDC_CHK_EN_1,    "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,  6,14, 18,10
+    LTEXT    "Ch:", IDC_STATIC,                                                     26,14, 12,10
+    CONTROL  "",    IDC_EDIT_CH_1,   "CustEdit",       WS_TABSTOP,                  38,13, 14,12
+    CONTROL  "",    IDC_SPIN_CH_1,   "SpinnerControl", WS_TABSTOP,                  52,13,  7,12
+    COMBOBOX        IDC_COMBO_TYPE_1,                                                62,13, 40,80, CBS_DROPDOWNLIST|WS_TABSTOP
+    LTEXT    "UT:", IDC_STATIC,                                                      6,28, 12,10
+    CONTROL  "",    IDC_EDIT_UT_1,   "CustEdit",       WS_TABSTOP,                  18,27, 22,12
+    CONTROL  "",    IDC_SPIN_UT_1,   "SpinnerControl", WS_TABSTOP,                  40,27,  7,12
+    LTEXT    "VT:", IDC_STATIC,                                                     52,28, 12,10
+    CONTROL  "",    IDC_EDIT_VT_1,   "CustEdit",       WS_TABSTOP,                  64,27, 22,12
+    CONTROL  "",    IDC_SPIN_VT_1,   "SpinnerControl", WS_TABSTOP,                  86,27,  7,12
+    LTEXT    "UO:", IDC_STATIC,                                                      6,42, 12,10
+    CONTROL  "",    IDC_EDIT_UOFF_1, "CustEdit",       WS_TABSTOP,                  18,41, 22,12
+    CONTROL  "",    IDC_SPIN_UOFF_1, "SpinnerControl", WS_TABSTOP,                  40,41,  7,12
+    LTEXT    "VO:", IDC_STATIC,                                                     52,42, 12,10
+    CONTROL  "",    IDC_EDIT_VOFF_1, "CustEdit",       WS_TABSTOP,                  64,41, 22,12
+    CONTROL  "",    IDC_SPIN_VOFF_1, "SpinnerControl", WS_TABSTOP,                  86,41,  7,12
+    CONTROL  "Flip U", IDC_CHK_FLIPU_1,"Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,58, 32,10
+    CONTROL  "Flip V", IDC_CHK_FLIPV_1,"Button",BS_AUTOCHECKBOX|WS_TABSTOP,         44,58, 32,10
 
-    // =============================================================  ROW 1  base=14
-    CONTROL  "1",     IDC_CHK_EN_1,  "Button",  BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,  4, 14, 14, 10
-    LTEXT    "Ch:",   IDC_STATIC,   20, 14, 14, 10
-    CONTROL  "",      IDC_EDIT_CH_1, "CustEdit",       WS_TABSTOP,                    36, 13, 16, 12
-    CONTROL  "",      IDC_SPIN_CH_1, "SpinnerControl", WS_TABSTOP,                    52, 13,  7, 12
-    COMBOBOX          IDC_COMBO_PR_1,                                                  62, 13, 28, 80, CBS_DROPDOWNLIST|WS_TABSTOP
+    // ============================================================  WALL Y  y=80
+    GROUPBOX "Wall Y", IDC_STATIC, 2, 80, 104, 74
+    CONTROL  "En",  IDC_CHK_EN_2,    "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,  6,92, 18,10
+    LTEXT    "Ch:", IDC_STATIC,                                                     26,92, 12,10
+    CONTROL  "",    IDC_EDIT_CH_2,   "CustEdit",       WS_TABSTOP,                  38,91, 14,12
+    CONTROL  "",    IDC_SPIN_CH_2,   "SpinnerControl", WS_TABSTOP,                  52,91,  7,12
+    COMBOBOX        IDC_COMBO_TYPE_2,                                                62,91, 40,80, CBS_DROPDOWNLIST|WS_TABSTOP
+    LTEXT    "UT:", IDC_STATIC,                                                      6,106,12,10
+    CONTROL  "",    IDC_EDIT_UT_2,   "CustEdit",       WS_TABSTOP,                  18,105,22,12
+    CONTROL  "",    IDC_SPIN_UT_2,   "SpinnerControl", WS_TABSTOP,                  40,105, 7,12
+    LTEXT    "VT:", IDC_STATIC,                                                     52,106,12,10
+    CONTROL  "",    IDC_EDIT_VT_2,   "CustEdit",       WS_TABSTOP,                  64,105,22,12
+    CONTROL  "",    IDC_SPIN_VT_2,   "SpinnerControl", WS_TABSTOP,                  86,105, 7,12
+    LTEXT    "UO:", IDC_STATIC,                                                      6,120,12,10
+    CONTROL  "",    IDC_EDIT_UOFF_2, "CustEdit",       WS_TABSTOP,                  18,119,22,12
+    CONTROL  "",    IDC_SPIN_UOFF_2, "SpinnerControl", WS_TABSTOP,                  40,119, 7,12
+    LTEXT    "VO:", IDC_STATIC,                                                     52,120,12,10
+    CONTROL  "",    IDC_EDIT_VOFF_2, "CustEdit",       WS_TABSTOP,                  64,119,22,12
+    CONTROL  "",    IDC_SPIN_VOFF_2, "SpinnerControl", WS_TABSTOP,                  86,119, 7,12
+    CONTROL  "Flip U", IDC_CHK_FLIPU_2,"Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,136,32,10
+    CONTROL  "Flip V", IDC_CHK_FLIPV_2,"Button",BS_AUTOCHECKBOX|WS_TABSTOP,         44,136,32,10
 
-    LTEXT    "UT:",   IDC_STATIC,    4, 27, 12, 10
-    CONTROL  "",      IDC_EDIT_UT_1, "CustEdit",       WS_TABSTOP,                    17, 26, 20, 12
-    CONTROL  "",      IDC_SPIN_UT_1, "SpinnerControl", WS_TABSTOP,                    37, 26,  7, 12
-    LTEXT    "VT:",   IDC_STATIC,   50, 27, 12, 10
-    CONTROL  "",      IDC_EDIT_VT_1, "CustEdit",       WS_TABSTOP,                    63, 26, 20, 12
-    CONTROL  "",      IDC_SPIN_VT_1, "SpinnerControl", WS_TABSTOP,                    83, 26,  7, 12
+    // ============================================================  FLOOR  y=158
+    GROUPBOX "Floor", IDC_STATIC, 2, 158, 104, 74
+    CONTROL  "En",  IDC_CHK_EN_3,    "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,  6,170,18,10
+    LTEXT    "Ch:", IDC_STATIC,                                                     26,170,12,10
+    CONTROL  "",    IDC_EDIT_CH_3,   "CustEdit",       WS_TABSTOP,                  38,169,14,12
+    CONTROL  "",    IDC_SPIN_CH_3,   "SpinnerControl", WS_TABSTOP,                  52,169, 7,12
+    COMBOBOX        IDC_COMBO_TYPE_3,                                                62,169,40,80, CBS_DROPDOWNLIST|WS_TABSTOP
+    LTEXT    "UT:", IDC_STATIC,                                                      6,184,12,10
+    CONTROL  "",    IDC_EDIT_UT_3,   "CustEdit",       WS_TABSTOP,                  18,183,22,12
+    CONTROL  "",    IDC_SPIN_UT_3,   "SpinnerControl", WS_TABSTOP,                  40,183, 7,12
+    LTEXT    "VT:", IDC_STATIC,                                                     52,184,12,10
+    CONTROL  "",    IDC_EDIT_VT_3,   "CustEdit",       WS_TABSTOP,                  64,183,22,12
+    CONTROL  "",    IDC_SPIN_VT_3,   "SpinnerControl", WS_TABSTOP,                  86,183, 7,12
+    LTEXT    "UO:", IDC_STATIC,                                                      6,198,12,10
+    CONTROL  "",    IDC_EDIT_UOFF_3, "CustEdit",       WS_TABSTOP,                  18,197,22,12
+    CONTROL  "",    IDC_SPIN_UOFF_3, "SpinnerControl", WS_TABSTOP,                  40,197, 7,12
+    LTEXT    "VO:", IDC_STATIC,                                                     52,198,12,10
+    CONTROL  "",    IDC_EDIT_VOFF_3, "CustEdit",       WS_TABSTOP,                  64,197,22,12
+    CONTROL  "",    IDC_SPIN_VOFF_3, "SpinnerControl", WS_TABSTOP,                  86,197, 7,12
+    CONTROL  "Flip U", IDC_CHK_FLIPU_3,"Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,214,32,10
+    CONTROL  "Flip V", IDC_CHK_FLIPV_3,"Button",BS_AUTOCHECKBOX|WS_TABSTOP,         44,214,32,10
 
-    LTEXT    "UOff:", IDC_STATIC,    4, 41, 20, 10
-    CONTROL  "",   IDC_EDIT_UOFF_1,  "CustEdit",       WS_TABSTOP,                    25, 40, 16, 12
-    CONTROL  "",   IDC_SPIN_UOFF_1,  "SpinnerControl", WS_TABSTOP,                    41, 40,  7, 12
-    LTEXT    "VOff:",IDC_STATIC,    54, 41, 20, 10
-    CONTROL  "",   IDC_EDIT_VOFF_1,  "CustEdit",       WS_TABSTOP,                    75, 40, 16, 12
-    CONTROL  "",   IDC_SPIN_VOFF_1,  "SpinnerControl", WS_TABSTOP,                    91, 40,  7, 12
+    // ============================================================  CEILING  y=236
+    GROUPBOX "Ceiling", IDC_STATIC, 2, 236, 104, 74
+    CONTROL  "En",  IDC_CHK_EN_4,    "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,  6,248,18,10
+    LTEXT    "Ch:", IDC_STATIC,                                                     26,248,12,10
+    CONTROL  "",    IDC_EDIT_CH_4,   "CustEdit",       WS_TABSTOP,                  38,247,14,12
+    CONTROL  "",    IDC_SPIN_CH_4,   "SpinnerControl", WS_TABSTOP,                  52,247, 7,12
+    COMBOBOX        IDC_COMBO_TYPE_4,                                                62,247,40,80, CBS_DROPDOWNLIST|WS_TABSTOP
+    LTEXT    "UT:", IDC_STATIC,                                                      6,262,12,10
+    CONTROL  "",    IDC_EDIT_UT_4,   "CustEdit",       WS_TABSTOP,                  18,261,22,12
+    CONTROL  "",    IDC_SPIN_UT_4,   "SpinnerControl", WS_TABSTOP,                  40,261, 7,12
+    LTEXT    "VT:", IDC_STATIC,                                                     52,262,12,10
+    CONTROL  "",    IDC_EDIT_VT_4,   "CustEdit",       WS_TABSTOP,                  64,261,22,12
+    CONTROL  "",    IDC_SPIN_VT_4,   "SpinnerControl", WS_TABSTOP,                  86,261, 7,12
+    LTEXT    "UO:", IDC_STATIC,                                                      6,276,12,10
+    CONTROL  "",    IDC_EDIT_UOFF_4, "CustEdit",       WS_TABSTOP,                  18,275,22,12
+    CONTROL  "",    IDC_SPIN_UOFF_4, "SpinnerControl", WS_TABSTOP,                  40,275, 7,12
+    LTEXT    "VO:", IDC_STATIC,                                                     52,276,12,10
+    CONTROL  "",    IDC_EDIT_VOFF_4, "CustEdit",       WS_TABSTOP,                  64,275,22,12
+    CONTROL  "",    IDC_SPIN_VOFF_4, "SpinnerControl", WS_TABSTOP,                  86,275, 7,12
+    CONTROL  "Flip U", IDC_CHK_FLIPU_4,"Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,292,32,10
+    CONTROL  "Flip V", IDC_CHK_FLIPV_4,"Button",BS_AUTOCHECKBOX|WS_TABSTOP,         44,292,32,10
 
-    CONTROL  "Flip U",IDC_CHK_FLIPU_1,"Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,   4, 55, 28, 10
-    CONTROL  "Flip V",IDC_CHK_FLIPV_1,"Button",BS_AUTOCHECKBOX|WS_TABSTOP,           34, 55, 28, 10
-    CONTROL  "Swap",  IDC_CHK_SWAP_1, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,           64, 55, 28, 10
-    CONTROL  "",      IDC_STATIC,    "Static", SS_GRAYRECT,                          4, 67,100,  1
+    // ============================================================  BLEND MATH  y=316
+    GROUPBOX "Blend Math", IDC_STATIC, 2, 316, 104, 98
+    LTEXT    "Sharp:",   IDC_STATIC,                                                 6,328,26,10
+    CONTROL  "",  IDC_EDIT_SHARP,      "CustEdit",       WS_TABSTOP,                34,327,22,12
+    CONTROL  "",  IDC_SPIN_SHARP,      "SpinnerControl", WS_TABSTOP,                56,327, 7,12
+    LTEXT    "Hard:",    IDC_STATIC,                                                65,328,18,10
+    CONTROL  "",  IDC_EDIT_HARDTHRESH, "CustEdit",       WS_TABSTOP,                83,327,16,12
+    CONTROL  "",  IDC_SPIN_HARDTHRESH, "SpinnerControl", WS_TABSTOP,                99,327, 7,12
 
-    // =============================================================  ROW 2  base=71
-    CONTROL  "2",     IDC_CHK_EN_2,  "Button",  BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,  4, 71, 14, 10
-    LTEXT    "Ch:",   IDC_STATIC,   20, 71, 14, 10
-    CONTROL  "",      IDC_EDIT_CH_2, "CustEdit",       WS_TABSTOP,                    36, 70, 16, 12
-    CONTROL  "",      IDC_SPIN_CH_2, "SpinnerControl", WS_TABSTOP,                    52, 70,  7, 12
-    COMBOBOX          IDC_COMBO_PR_2,                                                  62, 70, 28, 80, CBS_DROPDOWNLIST|WS_TABSTOP
+    LTEXT    "X Bias:",  IDC_STATIC,                                                 6,342,26,10
+    CONTROL  "",  IDC_EDIT_WALLXBIAS,  "CustEdit",       WS_TABSTOP,                34,341,22,12
+    CONTROL  "",  IDC_SPIN_WALLXBIAS,  "SpinnerControl", WS_TABSTOP,                56,341, 7,12
+    LTEXT    "Y Bias:",  IDC_STATIC,                                                65,342,26,10
+    CONTROL  "",  IDC_EDIT_WALLYBIAS,  "CustEdit",       WS_TABSTOP,                83,341,16,12
+    CONTROL  "",  IDC_SPIN_WALLYBIAS,  "SpinnerControl", WS_TABSTOP,                99,341, 7,12
 
-    LTEXT    "UT:",   IDC_STATIC,    4, 84, 12, 10
-    CONTROL  "",      IDC_EDIT_UT_2, "CustEdit",       WS_TABSTOP,                    17, 83, 20, 12
-    CONTROL  "",      IDC_SPIN_UT_2, "SpinnerControl", WS_TABSTOP,                    37, 83,  7, 12
-    LTEXT    "VT:",   IDC_STATIC,   50, 84, 12, 10
-    CONTROL  "",      IDC_EDIT_VT_2, "CustEdit",       WS_TABSTOP,                    63, 83, 20, 12
-    CONTROL  "",      IDC_SPIN_VT_2, "SpinnerControl", WS_TABSTOP,                    83, 83,  7, 12
+    LTEXT    "Fl Bias:", IDC_STATIC,                                                 6,356,26,10
+    CONTROL  "",  IDC_EDIT_FLOORBIAS,  "CustEdit",       WS_TABSTOP,                34,355,22,12
+    CONTROL  "",  IDC_SPIN_FLOORBIAS,  "SpinnerControl", WS_TABSTOP,                56,355, 7,12
+    LTEXT    "Cl Bias:", IDC_STATIC,                                                65,356,26,10
+    CONTROL  "",  IDC_EDIT_CEILBIAS,   "CustEdit",       WS_TABSTOP,                83,355,16,12
+    CONTROL  "",  IDC_SPIN_CEILBIAS,   "SpinnerControl", WS_TABSTOP,                99,355, 7,12
 
-    LTEXT    "UOff:", IDC_STATIC,    4, 98, 20, 10
-    CONTROL  "",   IDC_EDIT_UOFF_2,  "CustEdit",       WS_TABSTOP,                    25, 97, 16, 12
-    CONTROL  "",   IDC_SPIN_UOFF_2,  "SpinnerControl", WS_TABSTOP,                    41, 97,  7, 12
-    LTEXT    "VOff:",IDC_STATIC,    54, 98, 20, 10
-    CONTROL  "",   IDC_EDIT_VOFF_2,  "CustEdit",       WS_TABSTOP,                    75, 97, 16, 12
-    CONTROL  "",   IDC_SPIN_VOFF_2,  "SpinnerControl", WS_TABSTOP,                    91, 97,  7, 12
+    LTEXT    "Fl Start:",IDC_STATIC,                                                 6,370,30,10
+    CONTROL  "",  IDC_EDIT_FLOORSTART, "CustEdit",       WS_TABSTOP,                36,369,20,12
+    CONTROL  "",  IDC_SPIN_FLOORSTART, "SpinnerControl", WS_TABSTOP,                56,369, 7,12
+    LTEXT    "Cl Start:",IDC_STATIC,                                                65,370,30,10
+    CONTROL  "",  IDC_EDIT_CEILSTART,  "CustEdit",       WS_TABSTOP,                95,369, 4,12
+    CONTROL  "",  IDC_SPIN_CEILSTART,  "SpinnerControl", WS_TABSTOP,                99,369, 7,12
 
-    CONTROL  "Flip U",IDC_CHK_FLIPU_2,"Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,   4,112, 28, 10
-    CONTROL  "Flip V",IDC_CHK_FLIPV_2,"Button",BS_AUTOCHECKBOX|WS_TABSTOP,           34,112, 28, 10
-    CONTROL  "Swap",  IDC_CHK_SWAP_2, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,           64,112, 28, 10
-    CONTROL  "",      IDC_STATIC,    "Static", SS_GRAYRECT,                          4,124,100,  1
+    CONTROL  "Invert Z",    IDC_CHK_INVERTZ, "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,  6,386,42,10
+    CONTROL  "Hard Snap",   IDC_CHK_HARDDOM, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,           54,386,46,10
 
-    // =============================================================  ROW 3  base=128
-    CONTROL  "3",     IDC_CHK_EN_3,  "Button",  BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,  4,128, 14, 10
-    LTEXT    "Ch:",   IDC_STATIC,   20,128, 14, 10
-    CONTROL  "",      IDC_EDIT_CH_3, "CustEdit",       WS_TABSTOP,                    36,127, 16, 12
-    CONTROL  "",      IDC_SPIN_CH_3, "SpinnerControl", WS_TABSTOP,                    52,127,  7, 12
-    COMBOBOX          IDC_COMBO_PR_3,                                                  62,127, 28, 80, CBS_DROPDOWNLIST|WS_TABSTOP
-
-    LTEXT    "UT:",   IDC_STATIC,    4,141, 12, 10
-    CONTROL  "",      IDC_EDIT_UT_3, "CustEdit",       WS_TABSTOP,                    17,140, 20, 12
-    CONTROL  "",      IDC_SPIN_UT_3, "SpinnerControl", WS_TABSTOP,                    37,140,  7, 12
-    LTEXT    "VT:",   IDC_STATIC,   50,141, 12, 10
-    CONTROL  "",      IDC_EDIT_VT_3, "CustEdit",       WS_TABSTOP,                    63,140, 20, 12
-    CONTROL  "",      IDC_SPIN_VT_3, "SpinnerControl", WS_TABSTOP,                    83,140,  7, 12
-
-    LTEXT    "UOff:", IDC_STATIC,    4,155, 20, 10
-    CONTROL  "",   IDC_EDIT_UOFF_3,  "CustEdit",       WS_TABSTOP,                    25,154, 16, 12
-    CONTROL  "",   IDC_SPIN_UOFF_3,  "SpinnerControl", WS_TABSTOP,                    41,154,  7, 12
-    LTEXT    "VOff:",IDC_STATIC,    54,155, 20, 10
-    CONTROL  "",   IDC_EDIT_VOFF_3,  "CustEdit",       WS_TABSTOP,                    75,154, 16, 12
-    CONTROL  "",   IDC_SPIN_VOFF_3,  "SpinnerControl", WS_TABSTOP,                    91,154,  7, 12
-
-    CONTROL  "Flip U",IDC_CHK_FLIPU_3,"Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,   4,169, 28, 10
-    CONTROL  "Flip V",IDC_CHK_FLIPV_3,"Button",BS_AUTOCHECKBOX|WS_TABSTOP,           34,169, 28, 10
-    CONTROL  "Swap",  IDC_CHK_SWAP_3, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,           64,169, 28, 10
-    CONTROL  "",      IDC_STATIC,    "Static", SS_GRAYRECT,                          4,181,100,  1
-
-    // =============================================================  ROW 4  base=185
-    CONTROL  "4",     IDC_CHK_EN_4,  "Button",  BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,  4,185, 14, 10
-    LTEXT    "Ch:",   IDC_STATIC,   20,185, 14, 10
-    CONTROL  "",      IDC_EDIT_CH_4, "CustEdit",       WS_TABSTOP,                    36,184, 16, 12
-    CONTROL  "",      IDC_SPIN_CH_4, "SpinnerControl", WS_TABSTOP,                    52,184,  7, 12
-    COMBOBOX          IDC_COMBO_PR_4,                                                  62,184, 28, 80, CBS_DROPDOWNLIST|WS_TABSTOP
-
-    LTEXT    "UT:",   IDC_STATIC,    4,198, 12, 10
-    CONTROL  "",      IDC_EDIT_UT_4, "CustEdit",       WS_TABSTOP,                    17,197, 20, 12
-    CONTROL  "",      IDC_SPIN_UT_4, "SpinnerControl", WS_TABSTOP,                    37,197,  7, 12
-    LTEXT    "VT:",   IDC_STATIC,   50,198, 12, 10
-    CONTROL  "",      IDC_EDIT_VT_4, "CustEdit",       WS_TABSTOP,                    63,197, 20, 12
-    CONTROL  "",      IDC_SPIN_VT_4, "SpinnerControl", WS_TABSTOP,                    83,197,  7, 12
-
-    LTEXT    "UOff:", IDC_STATIC,    4,212, 20, 10
-    CONTROL  "",   IDC_EDIT_UOFF_4,  "CustEdit",       WS_TABSTOP,                    25,211, 16, 12
-    CONTROL  "",   IDC_SPIN_UOFF_4,  "SpinnerControl", WS_TABSTOP,                    41,211,  7, 12
-    LTEXT    "VOff:",IDC_STATIC,    54,212, 20, 10
-    CONTROL  "",   IDC_EDIT_VOFF_4,  "CustEdit",       WS_TABSTOP,                    75,211, 16, 12
-    CONTROL  "",   IDC_SPIN_VOFF_4,  "SpinnerControl", WS_TABSTOP,                    91,211,  7, 12
-
-    CONTROL  "Flip U",IDC_CHK_FLIPU_4,"Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,   4,226, 28, 10
-    CONTROL  "Flip V",IDC_CHK_FLIPV_4,"Button",BS_AUTOCHECKBOX|WS_TABSTOP,           34,226, 28, 10
-    CONTROL  "Swap",  IDC_CHK_SWAP_4, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,           64,226, 28, 10
-    CONTROL  "",      IDC_STATIC,    "Static", SS_GRAYRECT,                          4,238,100,  1
-
-    // =============================================================  ROW 5  base=242
-    CONTROL  "5",     IDC_CHK_EN_5,  "Button",  BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,  4,242, 14, 10
-    LTEXT    "Ch:",   IDC_STATIC,   20,242, 14, 10
-    CONTROL  "",      IDC_EDIT_CH_5, "CustEdit",       WS_TABSTOP,                    36,241, 16, 12
-    CONTROL  "",      IDC_SPIN_CH_5, "SpinnerControl", WS_TABSTOP,                    52,241,  7, 12
-    COMBOBOX          IDC_COMBO_PR_5,                                                  62,241, 28, 80, CBS_DROPDOWNLIST|WS_TABSTOP
-
-    LTEXT    "UT:",   IDC_STATIC,    4,255, 12, 10
-    CONTROL  "",      IDC_EDIT_UT_5, "CustEdit",       WS_TABSTOP,                    17,254, 20, 12
-    CONTROL  "",      IDC_SPIN_UT_5, "SpinnerControl", WS_TABSTOP,                    37,254,  7, 12
-    LTEXT    "VT:",   IDC_STATIC,   50,255, 12, 10
-    CONTROL  "",      IDC_EDIT_VT_5, "CustEdit",       WS_TABSTOP,                    63,254, 20, 12
-    CONTROL  "",      IDC_SPIN_VT_5, "SpinnerControl", WS_TABSTOP,                    83,254,  7, 12
-
-    LTEXT    "UOff:", IDC_STATIC,    4,269, 20, 10
-    CONTROL  "",   IDC_EDIT_UOFF_5,  "CustEdit",       WS_TABSTOP,                    25,268, 16, 12
-    CONTROL  "",   IDC_SPIN_UOFF_5,  "SpinnerControl", WS_TABSTOP,                    41,268,  7, 12
-    LTEXT    "VOff:",IDC_STATIC,    54,269, 20, 10
-    CONTROL  "",   IDC_EDIT_VOFF_5,  "CustEdit",       WS_TABSTOP,                    75,268, 16, 12
-    CONTROL  "",   IDC_SPIN_VOFF_5,  "SpinnerControl", WS_TABSTOP,                    91,268,  7, 12
-
-    CONTROL  "Flip U",IDC_CHK_FLIPU_5,"Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,   4,283, 28, 10
-    CONTROL  "Flip V",IDC_CHK_FLIPV_5,"Button",BS_AUTOCHECKBOX|WS_TABSTOP,           34,283, 28, 10
-    CONTROL  "Swap",  IDC_CHK_SWAP_5, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,           64,283, 28, 10
-    CONTROL  "",      IDC_STATIC,    "Static", SS_GRAYRECT,                          4,295,100,  1
-
-    // =============================================================  ROW 6  base=299
-    CONTROL  "6",     IDC_CHK_EN_6,  "Button",  BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,  4,299, 14, 10
-    LTEXT    "Ch:",   IDC_STATIC,   20,299, 14, 10
-    CONTROL  "",      IDC_EDIT_CH_6, "CustEdit",       WS_TABSTOP,                    36,298, 16, 12
-    CONTROL  "",      IDC_SPIN_CH_6, "SpinnerControl", WS_TABSTOP,                    52,298,  7, 12
-    COMBOBOX          IDC_COMBO_PR_6,                                                  62,298, 28, 80, CBS_DROPDOWNLIST|WS_TABSTOP
-
-    LTEXT    "UT:",   IDC_STATIC,    4,312, 12, 10
-    CONTROL  "",      IDC_EDIT_UT_6, "CustEdit",       WS_TABSTOP,                    17,311, 20, 12
-    CONTROL  "",      IDC_SPIN_UT_6, "SpinnerControl", WS_TABSTOP,                    37,311,  7, 12
-    LTEXT    "VT:",   IDC_STATIC,   50,312, 12, 10
-    CONTROL  "",      IDC_EDIT_VT_6, "CustEdit",       WS_TABSTOP,                    63,311, 20, 12
-    CONTROL  "",      IDC_SPIN_VT_6, "SpinnerControl", WS_TABSTOP,                    83,311,  7, 12
-
-    LTEXT    "UOff:", IDC_STATIC,    4,326, 20, 10
-    CONTROL  "",   IDC_EDIT_UOFF_6,  "CustEdit",       WS_TABSTOP,                    25,325, 16, 12
-    CONTROL  "",   IDC_SPIN_UOFF_6,  "SpinnerControl", WS_TABSTOP,                    41,325,  7, 12
-    LTEXT    "VOff:",IDC_STATIC,    54,326, 20, 10
-    CONTROL  "",   IDC_EDIT_VOFF_6,  "CustEdit",       WS_TABSTOP,                    75,325, 16, 12
-    CONTROL  "",   IDC_SPIN_VOFF_6,  "SpinnerControl", WS_TABSTOP,                    91,325,  7, 12
-
-    CONTROL  "Flip U",IDC_CHK_FLIPU_6,"Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,   4,340, 28, 10
-    CONTROL  "Flip V",IDC_CHK_FLIPV_6,"Button",BS_AUTOCHECKBOX|WS_TABSTOP,           34,340, 28, 10
-    CONTROL  "Swap",  IDC_CHK_SWAP_6, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,           64,340, 28, 10
-
-    // =============================================================  SEAM OPTIONS  y=364
-    GROUPBOX "Seam Options", IDC_STATIC, 2,364,104, 68
-    LTEXT    "N.Thresh:",  IDC_STATIC,   6,376, 36, 10
-    CONTROL  "", IDC_EDIT_THRESH,"CustEdit",      WS_TABSTOP,                         44,375, 30, 12
-    CONTROL  "", IDC_SPIN_THRESH,"SpinnerControl",WS_TABSTOP,                         74,375,  7, 12
-    CONTROL  "Merge Islands",  IDC_CHK_MERGE,"Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,391, 64, 10
-    CONTROL  "Park Non-Match", IDC_CHK_PARK, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,         6,405, 70, 10
-    LTEXT    "Park U:", IDC_STATIC,      6,419, 28, 10
-    CONTROL  "", IDC_EDIT_PARKU,"CustEdit",      WS_TABSTOP,                          36,418, 20, 12
-    CONTROL  "", IDC_SPIN_PARKU,"SpinnerControl",WS_TABSTOP,                          56,418,  7, 12
-    LTEXT    "V:",      IDC_STATIC,     66,419, 10, 10
-    CONTROL  "", IDC_EDIT_PARKV,"CustEdit",      WS_TABSTOP,                          76,418, 20, 12
-    CONTROL  "", IDC_SPIN_PARKV,"SpinnerControl",WS_TABSTOP,                          96,418,  7, 12
-
-    // =============================================================  BLEND OUTPUT  y=436
-    GROUPBOX "Blend Output",  IDC_STATIC, 2,436,104, 72
-    CONTROL  "Enable",  IDC_CHK_EN_BLEND,"Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,448, 50, 10
-    LTEXT    "Channel:",IDC_STATIC,       6,462, 36, 10
-    CONTROL  "", IDC_EDIT_CH_BLEND,"CustEdit",      WS_TABSTOP,                        44,461, 30, 12
-    CONTROL  "", IDC_SPIN_CH_BLEND,"SpinnerControl",WS_TABSTOP,                        74,461,  7, 12
-    LTEXT    "Power:",  IDC_STATIC,       6,476, 28, 10
-    CONTROL  "", IDC_EDIT_POWER,  "CustEdit",      WS_TABSTOP,                         44,475, 30, 12
-    CONTROL  "", IDC_SPIN_POWER,  "SpinnerControl",WS_TABSTOP,                         74,475,  7, 12
-    CONTROL  "Show Blend", IDC_CHK_SHOW, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,           6,491, 55, 10
+    // ============================================================  OUTPUT  y=420
+    GROUPBOX "Output", IDC_STATIC, 2, 420, 104, 82
+    LTEXT    "Blend Ch:",   IDC_STATIC,                                              6,432,32,10
+    CONTROL  "",  IDC_EDIT_BLENDCH,   "CustEdit",       WS_TABSTOP,                 40,431,22,12
+    CONTROL  "",  IDC_SPIN_BLENDCH,   "SpinnerControl", WS_TABSTOP,                 62,431, 7,12
+    LTEXT    "Preview Ch:", IDC_STATIC,                                              6,446,38,10
+    CONTROL  "",  IDC_EDIT_PREVIEWCH, "CustEdit",       WS_TABSTOP,                 46,445,22,12
+    CONTROL  "",  IDC_SPIN_PREVIEWCH, "SpinnerControl", WS_TABSTOP,                 68,445, 7,12
+    LTEXT    "Mode:",       IDC_STATIC,                                              6,460,22,10
+    COMBOBOX        IDC_COMBO_PREVMODE,                                              30,459,72,80, CBS_DROPDOWNLIST|WS_TABSTOP
+    CONTROL  "Show Blend",     IDC_CHK_SHOWBLEND, "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,476,52,10
+    CONTROL  "Signed-Axis Fix",IDC_CHK_SIGNEDFIX, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,         6,488,76,10
 END
