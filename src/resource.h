@@ -68,6 +68,15 @@
 #define IDS_PREVIEWMODE  62
 #define IDS_SIGNEDFIX    64
 
+// AO (ch 11)
+#define IDS_AO_EN        65
+#define IDS_AO_CH        66
+#define IDS_AO_CAVITY    67
+#define IDS_AO_HEIGHT    68
+#define IDS_AO_DOWN      69
+#define IDS_AO_STRENGTH  70
+#define IDS_AO_GRAY      71
+
 // ---------------------------------------------------------------------------
 // Control IDs  (per-layer base = 1000 + N*100)
 // ---------------------------------------------------------------------------
@@ -163,3 +172,17 @@
 #define IDC_SPIN_PREVIEWCH    1603
 #define IDC_COMBO_PREVMODE    1604
 #define IDC_CHK_SIGNEDFIX     1606
+
+// AO (base 1700)
+#define IDC_CHK_AO_EN         1700
+#define IDC_EDIT_AO_CH        1701
+#define IDC_SPIN_AO_CH        1702
+#define IDC_EDIT_AO_CAVITY    1703
+#define IDC_SPIN_AO_CAVITY    1704
+#define IDC_EDIT_AO_HEIGHT    1705
+#define IDC_SPIN_AO_HEIGHT    1706
+#define IDC_EDIT_AO_DOWN      1707
+#define IDC_SPIN_AO_DOWN      1708
+#define IDC_EDIT_AO_STRENGTH  1709
+#define IDC_SPIN_AO_STRENGTH  1710
+#define IDC_CHK_AO_GRAY       1711

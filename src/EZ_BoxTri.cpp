@@ -82,7 +82,9 @@ enum ParamIDs
     pb_hardDom, pb_hardThresh,
     // Output (46-49)
     pb_blendCh, pb_previewCh, pb_previewMode,
-    pb_signedFix
+    pb_signedFix,
+    // AO (50-56)
+    pb_aoEnable, pb_aoChannel, pb_aoCavity, pb_aoHeight, pb_aoDown, pb_aoStrength, pb_aoGray
 };
 
 static const int kLayerStride = 9;
@@ -354,6 +356,10 @@ private:
         float hardThresh;
         int   blendCh, previewCh, previewMode;
         bool  signedFix;
+        // AO
+        bool  aoEnable, aoGray;
+        int   aoChannel;
+        float aoCavity, aoHeight, aoDown, aoStrength;
     };
 
     static int   ClampCh(int ch) { return std::clamp(ch, 1, 99); }
@@ -398,6 +404,13 @@ private:
         cfg.previewCh   = std::clamp(PBi((ParamID)pb_previewCh, t, 0), 0, 99);
         cfg.previewMode = std::clamp(PBi((ParamID)pb_previewMode, t, 3), 1, 5);
         cfg.signedFix   = PBb((ParamID)pb_signedFix, t, TRUE) != FALSE;
+        cfg.aoEnable    = PBb((ParamID)pb_aoEnable, t, FALSE) != FALSE;
+        cfg.aoChannel   = ClampCh(PBi((ParamID)pb_aoChannel, t, 11));
+        cfg.aoCavity    = PBf((ParamID)pb_aoCavity,   t, 1.0f);
+        cfg.aoHeight    = PBf((ParamID)pb_aoHeight,   t, 0.0f);
+        cfg.aoDown      = PBf((ParamID)pb_aoDown,     t, 0.0f);
+        cfg.aoStrength  = PBf((ParamID)pb_aoStrength, t, 1.0f);
+        cfg.aoGray      = PBb((ParamID)pb_aoGray,     t, FALSE) != FALSE;
     }
 
     // ========================================================================
@@ -482,6 +495,86 @@ private:
         const Point3 n  = e1 ^ e2;
         const float  L  = Length(n);
         return L > 1e-6f ? n / L : Point3(0,0,1);
+    }
+
+    // ========================================================================
+    // Pseudo-AO  —  per-vertex, mix of cavity + height + down-facing.
+    //
+    // Each contributor produces an "occlusion" in [0,1] (higher = darker).
+    // The weighted sum is scaled by Strength, clamped, then ao = 1 - occlusion
+    // (so 1 = fully lit/white, 0 = fully occluded/black).
+    //
+    //  cavity  — concavity from mesh connectivity. For each vertex, compare the
+    //            vector to the centroid of its edge-neighbours against the
+    //            smoothed vertex normal. Pointing along +N = sitting in a dip
+    //            (occluded); along -N = on a ridge (exposed).
+    //  height  — lower within the object's Z bounds = more occluded.
+    //  down    — surfaces facing down (-Z) = more occluded.
+    // ========================================================================
+    void ComputeAO(const Mesh& mesh, const Cfg& cfg,
+                   const Point3& mn, const Point3& mx,
+                   std::vector<float>& aoOut) const
+    {
+        const int nv = mesh.numVerts;
+        aoOut.assign(nv, 1.0f);
+
+        // Smoothed vertex normals + neighbour centroid accumulation
+        std::vector<Point3> vn(nv, Point3(0,0,0));
+        std::vector<Point3> nbrSum(nv, Point3(0,0,0));
+        std::vector<int>    nbrCnt(nv, 0);
+
+        for (int f = 0; f < mesh.numFaces; ++f)
+        {
+            const Face&  fc = mesh.faces[f];
+            const Point3 fn = FaceNormal(mesh, f);
+            for (int c = 0; c < 3; ++c)
+            {
+                const int v  = fc.v[c];
+                const int a  = fc.v[(c + 1) % 3];
+                const int b  = fc.v[(c + 2) % 3];
+                vn[v]    += fn;
+                nbrSum[v] += mesh.verts[a] + mesh.verts[b];
+                nbrCnt[v] += 2;
+            }
+        }
+
+        const float zRange = SafeDim(mx.z - mn.z);
+        const float wCav = std::max(0.0f, cfg.aoCavity);
+        const float wHgt = std::max(0.0f, cfg.aoHeight);
+        const float wDwn = std::max(0.0f, cfg.aoDown);
+        const float strength = std::max(0.0f, cfg.aoStrength);
+
+        for (int v = 0; v < nv; ++v)
+        {
+            Point3 n = vn[v];
+            const float nl = Length(n);
+            n = nl > 1e-6f ? n / nl : Point3(0,0,1);
+
+            // --- cavity ---
+            float cav = 0.0f;
+            if (nbrCnt[v] > 0)
+            {
+                const Point3 centroid = nbrSum[v] / (float)nbrCnt[v];
+                Point3 toC = centroid - mesh.verts[v];
+                const float tl = Length(toC);
+                if (tl > 1e-6f)
+                {
+                    // dot of normalised offset with normal: +1 deep concave, -1 ridge
+                    const float d = DotProd(toC / tl, n);
+                    cav = std::clamp(d, 0.0f, 1.0f); // only concave side occludes
+                }
+            }
+
+            // --- height (low = occluded) ---
+            const float hgt = std::clamp(1.0f - (mesh.verts[v].z - mn.z) / zRange, 0.0f, 1.0f);
+
+            // --- down-facing ---
+            const float dwn = std::clamp(-n.z, 0.0f, 1.0f);
+
+            float occ = wCav * cav + wHgt * hgt + wDwn * dwn;
+            occ = std::clamp(occ * strength, 0.0f, 1.0f);
+            aoOut[v] = 1.0f - occ;
+        }
     }
 
     // ========================================================================
@@ -631,9 +724,19 @@ private:
         PrepareFaceCornerChannel(mesh, cfg.blendCh);
         PrepareFaceCornerChannel(mesh, cfg.previewCh);
 
+        // AO channel + per-vertex AO values (computed once)
+        std::vector<float> aoVals;
+        if (cfg.aoEnable)
+        {
+            PrepareFaceCornerChannel(mesh, cfg.aoChannel);
+            ComputeAO(mesh, cfg, mn, mx, aoVals);
+        }
+
         // Cache channel/map refs to avoid Mesh::Map() lookups in the inner loop.
-        // If preview/blend share a channel with a layer or with each other,
-        // the later write wins — intentional, user can pick distinct channels.
+        // All PrepareFaceCornerChannel calls (which may setNumMaps) are done
+        // above, so these pointers stay valid through the loop.
+        // If preview/blend/ao share a channel, the later write wins —
+        // intentional, user can pick distinct channels.
         MeshMap* layerMap[4] = { nullptr, nullptr, nullptr, nullptr };
         for (int r = 0; r < 4; ++r)
             if (cfg.layer[r].enabled)
@@ -641,6 +744,7 @@ private:
         MeshMap* blendMap   = &mesh.Map(cfg.blendCh);
         const bool previewIsVC = (cfg.previewCh == 0);
         MeshMap* previewMap = previewIsVC ? nullptr : &mesh.Map(cfg.previewCh);
+        MeshMap* aoMap = cfg.aoEnable ? &mesh.Map(cfg.aoChannel) : nullptr;
 
         // Per-face main loop
         for (int f = 0; f < mesh.numFaces; ++f)
@@ -699,6 +803,17 @@ private:
                 previewMap->tv[mvBase    ] = prevUV;
                 previewMap->tv[mvBase + 1] = prevUV;
                 previewMap->tv[mvBase + 2] = prevUV;
+            }
+
+            // AO ch — per-vertex (smooth gradient). Red-only or grayscale.
+            if (aoMap)
+            {
+                for (int c = 0; c < 3; ++c)
+                {
+                    const float ao = aoVals[fc.v[c]];
+                    aoMap->tv[mvBase + c] = cfg.aoGray ? Point3(ao, ao, ao)
+                                                       : Point3(ao, 0.0f, 0.0f);
+                }
             }
         }
     }
@@ -815,6 +930,34 @@ static ParamBlockDesc2 g_MainPBlock
     p_end,
     pb_signedFix, _T("signedFix"), TYPE_BOOL, P_ANIMATABLE, IDS_SIGNEDFIX,
         p_default, TRUE, p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_SIGNEDFIX,
+    p_end,
+
+    // AO (ch 11)
+    pb_aoEnable, _T("aoEnable"), TYPE_BOOL, P_ANIMATABLE, IDS_AO_EN,
+        p_default, FALSE, p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_AO_EN,
+    p_end,
+    pb_aoChannel, _T("aoChannel"), TYPE_INT, P_ANIMATABLE, IDS_AO_CH,
+        p_default, 11, p_range, 1, 99,
+        p_ui, TYPE_SPINNER, EDITTYPE_INT, IDC_EDIT_AO_CH, IDC_SPIN_AO_CH, SPIN_AUTOSCALE,
+    p_end,
+    pb_aoCavity, _T("aoCavity"), TYPE_FLOAT, P_ANIMATABLE, IDS_AO_CAVITY,
+        p_default, 1.0f, p_range, 0.0f, 1.0f,
+        p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_AO_CAVITY, IDC_SPIN_AO_CAVITY, SPIN_AUTOSCALE,
+    p_end,
+    pb_aoHeight, _T("aoHeight"), TYPE_FLOAT, P_ANIMATABLE, IDS_AO_HEIGHT,
+        p_default, 0.0f, p_range, 0.0f, 1.0f,
+        p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_AO_HEIGHT, IDC_SPIN_AO_HEIGHT, SPIN_AUTOSCALE,
+    p_end,
+    pb_aoDown, _T("aoDown"), TYPE_FLOAT, P_ANIMATABLE, IDS_AO_DOWN,
+        p_default, 0.0f, p_range, 0.0f, 1.0f,
+        p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_AO_DOWN, IDC_SPIN_AO_DOWN, SPIN_AUTOSCALE,
+    p_end,
+    pb_aoStrength, _T("aoStrength"), TYPE_FLOAT, P_ANIMATABLE, IDS_AO_STRENGTH,
+        p_default, 1.0f, p_range, 0.0f, 8.0f,
+        p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_EDIT_AO_STRENGTH, IDC_SPIN_AO_STRENGTH, SPIN_AUTOSCALE,
+    p_end,
+    pb_aoGray, _T("aoGray"), TYPE_BOOL, P_ANIMATABLE, IDS_AO_GRAY,
+        p_default, FALSE, p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_AO_GRAY,
     p_end,
 
     p_end
