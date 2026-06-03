@@ -140,10 +140,11 @@ fn EZ_BoxTri_Apply matVal =
     local n = EZ_BoxTri_GetSelected()
     if n == undefined do return false
     n.material = matVal
-    -- Make sure vertex-color-style display is OFF for non-VC tests
-    -- (vertex color display can override material colour).
-    -- For ch 0 tests we WANT it ON, but the material itself uses Vertex_Color
-    -- map and works either way.
+    -- CRITICAL: turn vertex-color display OFF for material/checker tests.
+    -- If a "LIVE Preview Mode" button left it ON, the viewport composites
+    -- the vertex colours over the material and the checker looks tinted.
+    try n.showVertexColors = false catch()
+    try update n catch()
     try forceCompleteRedraw() catch()
     true
 )
