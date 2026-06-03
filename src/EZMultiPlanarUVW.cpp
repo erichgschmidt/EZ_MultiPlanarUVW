@@ -80,9 +80,9 @@ enum ParamIDs
     pb_wallXBias, pb_wallYBias, pb_floorBias, pb_ceilBias,
     pb_floorStart, pb_ceilStart,
     pb_hardDom, pb_hardThresh,
-    // Output (46-50)
+    // Output (46-49)
     pb_blendCh, pb_previewCh, pb_previewMode,
-    pb_showBlend, pb_signedFix
+    pb_signedFix
 };
 
 static const int kLayerStride = 9;
@@ -259,13 +259,6 @@ class EZBoxTri : public Modifier
 public:
     IParamBlock2* pblock = nullptr;
 
-    struct DisplayCache {
-        std::vector<Point3> verts, colors;
-        std::vector<int>    indices;
-        bool valid = false;
-    };
-    mutable DisplayCache m_displayCache;
-
     EZBoxTri()  { g_EZBoxTriDesc.MakeAutoParamBlocks(this); }
     ~EZBoxTri() override = default;
 
@@ -308,46 +301,6 @@ public:
     { g_EZBoxTriDesc.BeginEditParams(ip, this, flags, prev); }
     void EndEditParams(IObjParam* ip, ULONG flags, Animatable* next) override
     { g_EZBoxTriDesc.EndEditParams(ip, this, flags, next); }
-
-    // ---- Viewport display --------------------------------------------------
-    void GetWorldBoundBox(TimeValue t, INode* inode, ViewExp*, Box3& box) override
-    {
-        if (!m_displayCache.valid) return;
-        Matrix3 tm = inode->GetObjectTM(t);
-        for (const auto& v : m_displayCache.verts) box += v * tm;
-    }
-
-    int Display(TimeValue t, INode* inode, ViewExp* vpt, int) override
-    {
-        if (!pblock || !m_displayCache.valid) return 0;
-        BOOL show = FALSE;
-        pblock->GetValue((ParamID)pb_showBlend, t, show, FOREVER);
-        if (!show) return 0;
-
-        GraphicsWindow* gw = vpt->getGW();
-        gw->setTransform(inode->GetObjectTM(t));
-        const DWORD saved = gw->getRndLimits();
-        // No z-buffer so the overlay isn't fighting the surface depth.
-        // GW_ILLUM forces self-illuminated, GW_FLAT shading.
-        gw->setRndLimits(GW_FLAT | GW_ILLUM);
-        const int nf = (int)m_displayCache.indices.size() / 3;
-        Point3 uvw[3] = {};
-        for (int f = 0; f < nf; ++f)
-        {
-            const int i0 = m_displayCache.indices[f*3];
-            const int i1 = m_displayCache.indices[f*3+1];
-            const int i2 = m_displayCache.indices[f*3+2];
-            // Per-face: all 3 corners have same color (face-corner data, no interp)
-            const Point3& col = m_displayCache.colors[i0];
-            gw->setColor(FILL_COLOR, col.x, col.y, col.z);
-            Point3 pts[3] = { m_displayCache.verts[i0],
-                              m_displayCache.verts[i1],
-                              m_displayCache.verts[i2] };
-            gw->triangle(pts, uvw);
-        }
-        gw->setRndLimits(saved);
-        return 1;
-    }
 
     // ---- Modifier ----------------------------------------------------------
     ChannelMask ChannelsUsed()    override { return GEOM_CHANNEL|TOPO_CHANNEL|TEXMAP_CHANNEL; }
@@ -400,7 +353,7 @@ private:
         bool  hardDom;
         float hardThresh;
         int   blendCh, previewCh, previewMode;
-        bool  showBlend, signedFix;
+        bool  signedFix;
     };
 
     static int   ClampCh(int ch) { return std::clamp(ch, 1, 99); }
@@ -444,7 +397,6 @@ private:
         cfg.blendCh     = ClampCh(PBi((ParamID)pb_blendCh, t, 10));
         cfg.previewCh   = std::clamp(PBi((ParamID)pb_previewCh, t, 0), 0, 99);
         cfg.previewMode = std::clamp(PBi((ParamID)pb_previewMode, t, 3), 1, 5);
-        cfg.showBlend   = PBb((ParamID)pb_showBlend, t, FALSE) != FALSE;
         cfg.signedFix   = PBb((ParamID)pb_signedFix, t, TRUE) != FALSE;
     }
 
@@ -679,18 +631,6 @@ private:
         PrepareFaceCornerChannel(mesh, cfg.blendCh);
         PrepareFaceCornerChannel(mesh, cfg.previewCh);
 
-        // Display cache header (filled in loop if showBlend)
-        if (cfg.showBlend)
-        {
-            m_displayCache.verts.assign(mesh.verts, mesh.verts + mesh.numVerts);
-            m_displayCache.colors.assign(mesh.numVerts, Point3(0,0,0));
-            m_displayCache.indices.resize(mesh.numFaces * 3);
-        }
-        else
-        {
-            m_displayCache.valid = false;
-        }
-
         // Cache channel/map refs to avoid Mesh::Map() lookups in the inner loop.
         // If preview/blend share a channel with a layer or with each other,
         // the later write wins — intentional, user can pick distinct channels.
@@ -760,22 +700,7 @@ private:
                 previewMap->tv[mvBase + 1] = prevUV;
                 previewMap->tv[mvBase + 2] = prevUV;
             }
-
-            // Display cache (per-vertex, last face wins — OK for box-tri where
-            // each vertex is shared by similarly-normalled faces, but for sharp
-            // edges we'd need face-color drawing. Keeping simple for now.)
-            if (cfg.showBlend)
-            {
-                m_displayCache.colors[fc.v[0]] = prevUV;
-                m_displayCache.colors[fc.v[1]] = prevUV;
-                m_displayCache.colors[fc.v[2]] = prevUV;
-                m_displayCache.indices[mvBase    ] = fc.v[0];
-                m_displayCache.indices[mvBase + 1] = fc.v[1];
-                m_displayCache.indices[mvBase + 2] = fc.v[2];
-            }
         }
-
-        if (cfg.showBlend) m_displayCache.valid = true;
     }
 };
 
@@ -887,9 +812,6 @@ static ParamBlockDesc2 g_MainPBlock
     p_end,
     pb_previewMode, _T("previewMode"), TYPE_INT, P_ANIMATABLE, IDS_PREVIEWMODE,
         p_default, 3, p_range, 1, 5,
-    p_end,
-    pb_showBlend, _T("showBlend"), TYPE_BOOL, P_ANIMATABLE, IDS_SHOWBLEND,
-        p_default, FALSE, p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_SHOWBLEND,
     p_end,
     pb_signedFix, _T("signedFix"), TYPE_BOOL, P_ANIMATABLE, IDS_SIGNEDFIX,
         p_default, TRUE, p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_SIGNEDFIX,

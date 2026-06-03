@@ -66,7 +66,6 @@
 #define IDS_BLENDCH      60
 #define IDS_PREVIEWCH    61
 #define IDS_PREVIEWMODE  62
-#define IDS_SHOWBLEND    63
 #define IDS_SIGNEDFIX    64
 
 // ---------------------------------------------------------------------------
@@ -163,5 +162,4 @@
 #define IDC_EDIT_PREVIEWCH    1602
 #define IDC_SPIN_PREVIEWCH    1603
 #define IDC_COMBO_PREVMODE    1604
-#define IDC_CHK_SHOWBLEND     1605
 #define IDC_CHK_SIGNEDFIX     1606

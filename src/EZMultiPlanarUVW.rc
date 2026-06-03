@@ -59,7 +59,6 @@ BEGIN
     IDS_BLENDCH      "BlendChannel"
     IDS_PREVIEWCH    "PreviewChannel"
     IDS_PREVIEWMODE  "PreviewMode"
-    IDS_SHOWBLEND    "ShowBlend"
     IDS_SIGNEDFIX    "SignedAxisFix"
 END
 
@@ -198,6 +197,5 @@ BEGIN
     CONTROL  "",  IDC_SPIN_PREVIEWCH, "SpinnerControl", WS_TABSTOP,                 68,445, 7,12
     LTEXT    "Mode:",       IDC_STATIC,                                              6,460,22,10
     COMBOBOX        IDC_COMBO_PREVMODE,                                              30,459,72,80, CBS_DROPDOWNLIST|WS_TABSTOP
-    CONTROL  "Show Blend",     IDC_CHK_SHOWBLEND, "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,476,52,10
-    CONTROL  "Signed-Axis Fix",IDC_CHK_SIGNEDFIX, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,         6,488,76,10
+    CONTROL  "Signed-Axis Fix",IDC_CHK_SIGNEDFIX, "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,476,76,10
 END

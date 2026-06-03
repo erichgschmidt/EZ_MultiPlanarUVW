@@ -185,6 +185,7 @@ rollout EZ_BoxTri_TestRollout "EZ BoxTri Test Materials" width:248
 
     group "Misc"
     (
+        button btn_clearMat "Clear Material (reset to gray)" width:230 height:22
         button btn_showVCD "Vtx Display ON (ch0)" width:113 height:20 across:2
         button btn_hideVCD "Vtx Display OFF" width:113 height:20
         button btn_report  "Report Channels" width:230 height:20
@@ -209,6 +210,22 @@ rollout EZ_BoxTri_TestRollout "EZ BoxTri Test Materials" width:248
         EZ_BoxTri_Apply (EZ_BoxTri_MakeCheckerMat "BoxTri Checker ch4" 4 spn_tile.value)
     on btn_checkAny pressed do
         EZ_BoxTri_Apply (EZ_BoxTri_MakeCheckerMat ("BoxTri Checker ch" + (spn_uvCh.value as string)) spn_uvCh.value spn_tile.value)
+
+    on btn_clearMat pressed do
+    (
+        local n = EZ_BoxTri_GetSelected()
+        if n != undefined do
+        (
+            -- Strip the test material and turn off vertex-color display so the
+            -- object goes back to a plain shaded gray surface.
+            try n.material = undefined catch()
+            try n.showVertexColors = false catch()
+            try n.wirecolor = (color 180 180 180) catch()
+            try update n catch()
+            try forceCompleteRedraw() catch()
+            format "Cleared material + vertex display on %\n" n.name
+        )
+    )
 
     on btn_showVCD pressed do
     (
@@ -254,5 +271,5 @@ rollout EZ_BoxTri_TestRollout "EZ BoxTri Test Materials" width:248
 
 -- Rollout floater scrolls when content exceeds the visible height,
 -- unlike createDialog which clips.
-EZ_BoxTri_Floater = newRolloutFloater "EZ BoxTri Test" 268 460
+EZ_BoxTri_Floater = newRolloutFloater "EZ BoxTri Test" 268 486
 addRollout EZ_BoxTri_TestRollout EZ_BoxTri_Floater
