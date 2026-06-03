@@ -605,19 +605,24 @@ private:
     // ========================================================================
     // Channel-write helper
     // ========================================================================
+    // ch in [-2, 99]:
+    //   -2 = alpha, -1 = illum, 0 = vertex color (all always present)
+    //    1..99 = standard map channels (need setNumMaps + mapSupport)
     void EnsureChannel(Mesh& mesh, int ch) const
     {
-        ch = ClampCh(ch);
+        if (ch < 1) return;  // negative + 0 are always available
+        if (ch > 99) return;
         const int needed = ch + 1;
         if (mesh.getNumMaps() < needed) mesh.setNumMaps(needed, TRUE);
         if (!mesh.mapSupport(ch)) mesh.setMapSupport(ch, TRUE);
     }
 
     // Allocate face-corner-unwelded storage: 3 unique map-verts per face,
-    // mapVert index = face * 3 + corner.
+    // mapVert index = face * 3 + corner. Allows ch=0 for the vertex color
+    // channel (preview default).
     void PrepareFaceCornerChannel(Mesh& mesh, int ch) const
     {
-        ch = ClampCh(ch);
+        if (ch < 0 || ch > 99) return;
         EnsureChannel(mesh, ch);
         const int nv = mesh.numFaces * 3;
         mesh.setNumMapVerts(ch, nv, FALSE);
@@ -666,13 +671,15 @@ private:
             m_displayCache.valid = false;
         }
 
-        // Cache channel/map refs to avoid Mesh::Map() lookups in the inner loop
-        MeshMap* layerMap[4]   = { nullptr, nullptr, nullptr, nullptr };
+        // Cache channel/map refs to avoid Mesh::Map() lookups in the inner loop.
+        // If preview/blend share a channel with a layer or with each other,
+        // the later write wins — intentional, user can pick distinct channels.
+        MeshMap* layerMap[4] = { nullptr, nullptr, nullptr, nullptr };
         for (int r = 0; r < 4; ++r)
             if (cfg.layer[r].enabled)
                 layerMap[r] = &mesh.Map(cfg.layer[r].channel);
-        MeshMap& blendMap   = mesh.Map(cfg.blendCh);
-        MeshMap& previewMap = mesh.Map(cfg.previewCh);
+        MeshMap* blendMap   = &mesh.Map(cfg.blendCh);
+        MeshMap* previewMap = &mesh.Map(cfg.previewCh);
 
         // Per-face main loop
         for (int f = 0; f < mesh.numFaces; ++f)
@@ -715,14 +722,14 @@ private:
             }
 
             // Blend ch — constant per face (kills intra-face gradient)
-            blendMap.tv[mvBase    ] = blendUV;
-            blendMap.tv[mvBase + 1] = blendUV;
-            blendMap.tv[mvBase + 2] = blendUV;
+            blendMap->tv[mvBase    ] = blendUV;
+            blendMap->tv[mvBase + 1] = blendUV;
+            blendMap->tv[mvBase + 2] = blendUV;
 
             // Preview ch
-            previewMap.tv[mvBase    ] = prevUV;
-            previewMap.tv[mvBase + 1] = prevUV;
-            previewMap.tv[mvBase + 2] = prevUV;
+            previewMap->tv[mvBase    ] = prevUV;
+            previewMap->tv[mvBase + 1] = prevUV;
+            previewMap->tv[mvBase + 2] = prevUV;
 
             // Display cache (per-vertex, last face wins — OK for box-tri where
             // each vertex is shared by similarly-normalled faces, but for sharp
