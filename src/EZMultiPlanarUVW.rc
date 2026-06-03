@@ -112,7 +112,7 @@ BEGIN
     CONTROL  "Flip V", IDC_CHK_FLIPV_2,"Button",BS_AUTOCHECKBOX|WS_TABSTOP,         44,136,32,10
 
     // ============================================================  FLOOR  y=158
-    GROUPBOX "Floor", IDC_STATIC, 2, 158, 104, 74
+    GROUPBOX "Floor (+Z)", IDC_STATIC, 2, 158, 104, 74
     CONTROL  "En",  IDC_CHK_EN_3,    "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,  6,170,18,10
     LTEXT    "Ch:", IDC_STATIC,                                                     26,170,12,10
     CONTROL  "",    IDC_EDIT_CH_3,   "CustEdit",       WS_TABSTOP,                  38,169,14,12
@@ -134,7 +134,7 @@ BEGIN
     CONTROL  "Flip V", IDC_CHK_FLIPV_3,"Button",BS_AUTOCHECKBOX|WS_TABSTOP,         44,214,32,10
 
     // ============================================================  CEILING  y=236
-    GROUPBOX "Ceiling", IDC_STATIC, 2, 236, 104, 74
+    GROUPBOX "Ceiling (-Z)", IDC_STATIC, 2, 236, 104, 74
     CONTROL  "En",  IDC_CHK_EN_4,    "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,  6,248,18,10
     LTEXT    "Ch:", IDC_STATIC,                                                     26,248,12,10
     CONTROL  "",    IDC_EDIT_CH_4,   "CustEdit",       WS_TABSTOP,                  38,247,14,12

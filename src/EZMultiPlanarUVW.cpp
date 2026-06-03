@@ -327,7 +327,9 @@ public:
         GraphicsWindow* gw = vpt->getGW();
         gw->setTransform(inode->GetObjectTM(t));
         const DWORD saved = gw->getRndLimits();
-        gw->setRndLimits(GW_Z_BUFFER | GW_FLAT);
+        // No z-buffer so the overlay isn't fighting the surface depth.
+        // GW_ILLUM forces self-illuminated, GW_FLAT shading.
+        gw->setRndLimits(GW_FLAT | GW_ILLUM);
         const int nf = (int)m_displayCache.indices.size() / 3;
         Point3 uvw[3] = {};
         for (int f = 0; f < nf; ++f)
@@ -618,13 +620,31 @@ private:
     }
 
     // Allocate face-corner-unwelded storage: 3 unique map-verts per face,
-    // mapVert index = face * 3 + corner. Allows ch=0 for the vertex color
-    // channel (preview default).
+    // mapVert index = face * 3 + corner.
+    //
+    // Channel 0 uses the legacy vertCol / vcFace arrays — Mesh::Map(0) wraps
+    // them but setNumMapVerts(0, N) doesn't reliably allocate vertCol storage,
+    // so the unified API silently no-ops. Drop to the explicit setNumVertCol /
+    // setNumVCFaces calls for ch 0.
     void PrepareFaceCornerChannel(Mesh& mesh, int ch) const
     {
         if (ch < 0 || ch > 99) return;
-        EnsureChannel(mesh, ch);
         const int nv = mesh.numFaces * 3;
+
+        if (ch == 0)
+        {
+            mesh.setNumVertCol(nv, FALSE);
+            mesh.setNumVCFaces(mesh.numFaces, FALSE);
+            for (int f = 0; f < mesh.numFaces; ++f)
+            {
+                mesh.vcFace[f].t[0] = f * 3;
+                mesh.vcFace[f].t[1] = f * 3 + 1;
+                mesh.vcFace[f].t[2] = f * 3 + 2;
+            }
+            return;
+        }
+
+        EnsureChannel(mesh, ch);
         mesh.setNumMapVerts(ch, nv, FALSE);
         mesh.setNumMapFaces(ch, mesh.numFaces, FALSE);
         MeshMap& map = mesh.Map(ch);
@@ -679,7 +699,8 @@ private:
             if (cfg.layer[r].enabled)
                 layerMap[r] = &mesh.Map(cfg.layer[r].channel);
         MeshMap* blendMap   = &mesh.Map(cfg.blendCh);
-        MeshMap* previewMap = &mesh.Map(cfg.previewCh);
+        const bool previewIsVC = (cfg.previewCh == 0);
+        MeshMap* previewMap = previewIsVC ? nullptr : &mesh.Map(cfg.previewCh);
 
         // Per-face main loop
         for (int f = 0; f < mesh.numFaces; ++f)
@@ -726,10 +747,19 @@ private:
             blendMap->tv[mvBase + 1] = blendUV;
             blendMap->tv[mvBase + 2] = blendUV;
 
-            // Preview ch
-            previewMap->tv[mvBase    ] = prevUV;
-            previewMap->tv[mvBase + 1] = prevUV;
-            previewMap->tv[mvBase + 2] = prevUV;
+            // Preview ch (ch 0 routed to legacy vertCol)
+            if (previewIsVC)
+            {
+                mesh.vertCol[mvBase    ] = prevUV;
+                mesh.vertCol[mvBase + 1] = prevUV;
+                mesh.vertCol[mvBase + 2] = prevUV;
+            }
+            else
+            {
+                previewMap->tv[mvBase    ] = prevUV;
+                previewMap->tv[mvBase + 1] = prevUV;
+                previewMap->tv[mvBase + 2] = prevUV;
+            }
 
             // Display cache (per-vertex, last face wins — OK for box-tri where
             // each vertex is shared by similarly-normalled faces, but for sharp
