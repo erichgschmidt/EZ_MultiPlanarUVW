@@ -172,6 +172,13 @@ rollout EZ_BoxTri_TestRollout "EZ BoxTri Test Materials" width:248
         button btn_blendVC "Apply Blend RGB Material" width:230 height:22
     )
 
+    group "AO Channel (red = pseudo AO)"
+    (
+        spinner spn_aoCh "AO Ch:" range:[0,99,11] type:#integer fieldwidth:38 align:#left
+        button btn_aoVC "Show AO Channel as RGB" width:230 height:22
+        button btn_aoSample "Sample AO Channel (min/max/avg)" width:230 height:20
+    )
+
     group "Per-Layer UV Checker"
     (
         spinner spn_tile "Tiling:" range:[0.1,256.0,8.0] type:#float fieldwidth:50 align:#left
@@ -199,6 +206,37 @@ rollout EZ_BoxTri_TestRollout "EZ BoxTri Test Materials" width:248
 
     on btn_blendVC pressed do
         EZ_BoxTri_Apply (EZ_BoxTri_MakeVCMat ("BoxTri Blend ch" + (spn_blendCh.value as string)) spn_blendCh.value)
+
+    on btn_aoVC pressed do
+        EZ_BoxTri_Apply (EZ_BoxTri_MakeVCMat ("BoxTri AO ch" + (spn_aoCh.value as string)) spn_aoCh.value)
+
+    on btn_aoSample pressed do
+    (
+        local n = EZ_BoxTri_GetSelected()
+        if n != undefined do
+        (
+            local ch = spn_aoCh.value
+            local tm = snapshotAsMesh n
+            local sup = false
+            local mv = 0
+            try sup = meshop.getMapSupport tm ch catch()
+            try mv  = meshop.getNumMapVerts tm ch catch()
+            format "----- AO channel % : support:% mapVerts:% -----\n" ch sup mv
+            if sup and mv > 0 do
+            (
+                local rMin = 1e9, rMax = -1e9, rSum = 0.0
+                for i = 1 to mv do
+                (
+                    local c = meshop.getMapVert tm ch i
+                    if c.x < rMin do rMin = c.x
+                    if c.x > rMax do rMax = c.x
+                    rSum += c.x
+                )
+                format "  AO (red) min:% max:% avg:%\n" rMin rMax (rSum / mv)
+            )
+            free tm
+        )
+    )
 
     on btn_check1 pressed do
         EZ_BoxTri_Apply (EZ_BoxTri_MakeCheckerMat "BoxTri Checker ch1" 1 spn_tile.value)
@@ -271,5 +309,5 @@ rollout EZ_BoxTri_TestRollout "EZ BoxTri Test Materials" width:248
 
 -- Rollout floater scrolls when content exceeds the visible height,
 -- unlike createDialog which clips.
-EZ_BoxTri_Floater = newRolloutFloater "EZ BoxTri Test" 268 486
+EZ_BoxTri_Floater = newRolloutFloater "EZ BoxTri Test" 268 560
 addRollout EZ_BoxTri_TestRollout EZ_BoxTri_Floater
