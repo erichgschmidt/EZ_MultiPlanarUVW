@@ -149,53 +149,45 @@ fn EZ_BoxTri_Apply matVal =
     true
 )
 
-try destroyDialog EZ_BoxTri_TestRollout catch()
+global EZ_BoxTri_Floater
 
-rollout EZ_BoxTri_TestRollout "EZ BoxTri Test Materials" width:260
+try (closeRolloutFloater EZ_BoxTri_Floater) catch()
+try (destroyDialog EZ_BoxTri_TestRollout) catch()
+
+rollout EZ_BoxTri_TestRollout "EZ BoxTri Test Materials" width:248
 (
-    group "LIVE Preview Mode (viewport, ch 0)"
+    group "LIVE Preview (viewport, ch 0)"
     (
-        label lbl_live1 "Drives the modifier's Mode + shows it live." align:#left
-        button btn_mode1 "1: WallX=R WallY=G Floor=B" width:240 height:24
-        button btn_mode3 "3: Wall=R Floor=G Ceiling=B" width:240 height:24
-        button btn_mode5 "5: Dominant Debug (R/G/B/yellow)" width:240 height:24
-        button btn_mode2 "2: WallX=R WallY=G Ceiling=B" width:118 height:22 across:2
-        button btn_mode4 "4: WX=R WY=G Fl+Cl=B" width:118 height:22
-        label lbl_live2 "Mode 1: red=+/-X  green=+/-Y  blue=top  black=bottom" align:#left
+        button btn_mode1 "1: WallX=R WallY=G Floor=B" width:230 height:22
+        button btn_mode3 "3: Wall=R Floor=G Ceil=B" width:230 height:22
+        button btn_mode5 "5: Dominant (R/G/B/yellow)" width:230 height:22
+        button btn_mode2 "2: WX/WY/Ceil" width:113 height:20 across:2
+        button btn_mode4 "4: WX/WY/Fl+Cl" width:113 height:20
+        label lbl_live "Mode 1: red=+/-X grn=+/-Y blu=top blk=btm" align:#left
     )
 
-    group "Blend Channel (ch 10) — render to verify"
+    group "Blend Channel (render w/ F9)"
     (
-        label lbl_blend  "R=WallX  G=WallY  B=Floor  black=Ceiling" align:#left
-        label lbl_blend2 "Apply, then press F9 to render (viewport may fall back to ch0)." align:#left
-        spinner spn_blendCh "Blend Ch:" range:[0,99,10] type:#integer fieldwidth:40 align:#left
-        button btn_blendVC "Apply Blend-Channel RGB Material" width:240 height:26
-    )
-
-    group "Preview Channel — uses preview-mode remap"
-    (
-        spinner spn_prevCh  "Preview Ch:" range:[0,99,0] type:#integer fieldwidth:40 align:#left
-        button btn_prevVC  "Show Preview Channel as RGB" width:240 height:26
-        label lbl_prev "Default ch0 = vertex color. Try ch11/12 for extra previews." align:#left
+        spinner spn_blendCh "Blend Ch:" range:[0,99,10] type:#integer fieldwidth:38 align:#left
+        button btn_blendVC "Apply Blend RGB Material" width:230 height:22
     )
 
     group "Per-Layer UV Checker"
     (
-        label lbl_layers "Pick which UV channel to checker." align:#left
-        spinner spn_uvCh "UV Channel:" range:[1,99,1] type:#integer fieldwidth:40 align:#left across:2
-        spinner spn_tile "Tiling:"     range:[0.1,256.0,8.0] type:#float fieldwidth:50 align:#left
-        button btn_check1 "Wall X (ch1)"  width:118 height:24 across:2
-        button btn_check2 "Wall Y (ch2)"  width:118 height:24
-        button btn_check3 "Floor (ch3)"   width:118 height:24 across:2
-        button btn_check4 "Ceiling (ch4)" width:118 height:24
-        button btn_checkAny "Apply Checker to spinner channel" width:240 height:24
+        spinner spn_tile "Tiling:" range:[0.1,256.0,8.0] type:#float fieldwidth:50 align:#left
+        button btn_check1 "Wall X 1" width:113 height:20 across:2
+        button btn_check2 "Wall Y 2" width:113 height:20
+        button btn_check3 "Floor 3"  width:113 height:20 across:2
+        button btn_check4 "Ceiling 4" width:113 height:20
+        spinner spn_uvCh "Any Ch:" range:[1,99,1] type:#integer fieldwidth:38 align:#left across:2
+        button btn_checkAny "Checker Any" width:113 height:20
     )
 
     group "Misc"
     (
-        button btn_showVCD "Force Vertex Channel Display ON (ch 0)" width:240 height:24
-        button btn_hideVCD "Vertex Channel Display OFF" width:240 height:24
-        button btn_report  "Report Map Channels on Selected" width:240 height:24
+        button btn_showVCD "Vtx Display ON (ch0)" width:113 height:20 across:2
+        button btn_hideVCD "Vtx Display OFF" width:113 height:20
+        button btn_report  "Report Channels" width:230 height:20
     )
 
     on btn_mode1 pressed do EZ_BoxTri_SetPreviewMode 1
@@ -205,27 +197,16 @@ rollout EZ_BoxTri_TestRollout "EZ BoxTri Test Materials" width:260
     on btn_mode5 pressed do EZ_BoxTri_SetPreviewMode 5
 
     on btn_blendVC pressed do
-    (
         EZ_BoxTri_Apply (EZ_BoxTri_MakeVCMat ("BoxTri Blend ch" + (spn_blendCh.value as string)) spn_blendCh.value)
-    )
-
-    on btn_prevVC pressed do
-    (
-        EZ_BoxTri_Apply (EZ_BoxTri_MakeVCMat ("BoxTri Prev ch" + (spn_prevCh.value as string)) spn_prevCh.value)
-    )
 
     on btn_check1 pressed do
         EZ_BoxTri_Apply (EZ_BoxTri_MakeCheckerMat "BoxTri Checker ch1" 1 spn_tile.value)
-
     on btn_check2 pressed do
         EZ_BoxTri_Apply (EZ_BoxTri_MakeCheckerMat "BoxTri Checker ch2" 2 spn_tile.value)
-
     on btn_check3 pressed do
         EZ_BoxTri_Apply (EZ_BoxTri_MakeCheckerMat "BoxTri Checker ch3" 3 spn_tile.value)
-
     on btn_check4 pressed do
         EZ_BoxTri_Apply (EZ_BoxTri_MakeCheckerMat "BoxTri Checker ch4" 4 spn_tile.value)
-
     on btn_checkAny pressed do
         EZ_BoxTri_Apply (EZ_BoxTri_MakeCheckerMat ("BoxTri Checker ch" + (spn_uvCh.value as string)) spn_uvCh.value spn_tile.value)
 
@@ -238,7 +219,6 @@ rollout EZ_BoxTri_TestRollout "EZ BoxTri Test Materials" width:260
             try n.vertexColorType = 0 catch()
             try n.vertexColorMapChannel = 0 catch()
             try forceCompleteRedraw() catch()
-            format "Vertex Channel Display ON, reading ch 0\n"
         )
     )
 
@@ -249,7 +229,6 @@ rollout EZ_BoxTri_TestRollout "EZ BoxTri Test Materials" width:260
         (
             try n.showVertexColors = false catch()
             try forceCompleteRedraw() catch()
-            format "Vertex Channel Display OFF\n"
         )
     )
 
@@ -273,4 +252,7 @@ rollout EZ_BoxTri_TestRollout "EZ BoxTri Test Materials" width:260
     )
 )
 
-createDialog EZ_BoxTri_TestRollout 260 620
+-- Rollout floater scrolls when content exceeds the visible height,
+-- unlike createDialog which clips.
+EZ_BoxTri_Floater = newRolloutFloater "EZ BoxTri Test" 268 460
+addRollout EZ_BoxTri_TestRollout EZ_BoxTri_Floater
