@@ -153,10 +153,10 @@ static const ParamID kTypeParamIDs[4] = {
 };
 
 static const TCHAR* kPreviewModeLabels[5] = {
-    _T("WallX / WallY / Floor"),
-    _T("WallX / WallY / Ceiling"),
-    _T("Wall / Floor / Ceiling"),
-    _T("WallX / WallY / Floor+Ceil"),
+    _T("SideX / SideY / Top"),
+    _T("SideX / SideY / Bottom"),
+    _T("Side / Top / Bottom"),
+    _T("SideX / SideY / Top+Bot"),
     _T("Dominant Debug")
 };
 

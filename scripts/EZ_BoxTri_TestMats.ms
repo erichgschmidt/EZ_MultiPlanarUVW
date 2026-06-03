@@ -158,11 +158,11 @@ rollout EZ_BoxTri_TestRollout "EZ BoxTri Test Materials" width:248
 (
     group "LIVE Preview (viewport, ch 0)"
     (
-        button btn_mode1 "1: WallX=R WallY=G Floor=B" width:230 height:22
-        button btn_mode3 "3: Wall=R Floor=G Ceil=B" width:230 height:22
+        button btn_mode1 "1: SideX=R SideY=G Top=B" width:230 height:22
+        button btn_mode3 "3: Side=R Top=G Bot=B" width:230 height:22
         button btn_mode5 "5: Dominant (R/G/B/yellow)" width:230 height:22
-        button btn_mode2 "2: WX/WY/Ceil" width:113 height:20 across:2
-        button btn_mode4 "4: WX/WY/Fl+Cl" width:113 height:20
+        button btn_mode2 "2: SX/SY/Bot" width:113 height:20 across:2
+        button btn_mode4 "4: SX/SY/Top+Bot" width:113 height:20
         label lbl_live "Mode 1: red=+/-X grn=+/-Y blu=top blk=btm" align:#left
     )
 
@@ -175,10 +175,10 @@ rollout EZ_BoxTri_TestRollout "EZ BoxTri Test Materials" width:248
     group "Per-Layer UV Checker"
     (
         spinner spn_tile "Tiling:" range:[0.1,256.0,8.0] type:#float fieldwidth:50 align:#left
-        button btn_check1 "Wall X 1" width:113 height:20 across:2
-        button btn_check2 "Wall Y 2" width:113 height:20
-        button btn_check3 "Floor 3"  width:113 height:20 across:2
-        button btn_check4 "Ceiling 4" width:113 height:20
+        button btn_check1 "Side X 1" width:113 height:20 across:2
+        button btn_check2 "Side Y 2" width:113 height:20
+        button btn_check3 "Top 3"    width:113 height:20 across:2
+        button btn_check4 "Bottom 4" width:113 height:20
         spinner spn_uvCh "Any Ch:" range:[1,99,1] type:#integer fieldwidth:38 align:#left across:2
         button btn_checkAny "Checker Any" width:113 height:20
     )

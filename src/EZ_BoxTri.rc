@@ -67,7 +67,7 @@ STYLE DS_SETFONT | WS_CHILD | WS_VISIBLE
 FONT 8, "MS Sans Serif"
 BEGIN
     // ============================================================  WALL X  y=2
-    GROUPBOX "Wall X", IDC_STATIC, 2, 2, 104, 74
+    GROUPBOX "Side X", IDC_STATIC, 2, 2, 104, 74
     CONTROL  "En",  IDC_CHK_EN_1,    "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,  6,14, 18,10
     LTEXT    "Ch:", IDC_STATIC,                                                     26,14, 12,10
     CONTROL  "",    IDC_EDIT_CH_1,   "CustEdit",       WS_TABSTOP,                  38,13, 14,12
@@ -89,7 +89,7 @@ BEGIN
     CONTROL  "Flip V", IDC_CHK_FLIPV_1,"Button",BS_AUTOCHECKBOX|WS_TABSTOP,         44,58, 32,10
 
     // ============================================================  WALL Y  y=80
-    GROUPBOX "Wall Y", IDC_STATIC, 2, 80, 104, 74
+    GROUPBOX "Side Y", IDC_STATIC, 2, 80, 104, 74
     CONTROL  "En",  IDC_CHK_EN_2,    "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,  6,92, 18,10
     LTEXT    "Ch:", IDC_STATIC,                                                     26,92, 12,10
     CONTROL  "",    IDC_EDIT_CH_2,   "CustEdit",       WS_TABSTOP,                  38,91, 14,12
@@ -111,7 +111,7 @@ BEGIN
     CONTROL  "Flip V", IDC_CHK_FLIPV_2,"Button",BS_AUTOCHECKBOX|WS_TABSTOP,         44,136,32,10
 
     // ============================================================  FLOOR  y=158
-    GROUPBOX "Floor (+Z)", IDC_STATIC, 2, 158, 104, 74
+    GROUPBOX "Top (+Z)", IDC_STATIC, 2, 158, 104, 74
     CONTROL  "En",  IDC_CHK_EN_3,    "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,  6,170,18,10
     LTEXT    "Ch:", IDC_STATIC,                                                     26,170,12,10
     CONTROL  "",    IDC_EDIT_CH_3,   "CustEdit",       WS_TABSTOP,                  38,169,14,12
@@ -133,7 +133,7 @@ BEGIN
     CONTROL  "Flip V", IDC_CHK_FLIPV_3,"Button",BS_AUTOCHECKBOX|WS_TABSTOP,         44,214,32,10
 
     // ============================================================  CEILING  y=236
-    GROUPBOX "Ceiling (-Z)", IDC_STATIC, 2, 236, 104, 74
+    GROUPBOX "Bottom (-Z)", IDC_STATIC, 2, 236, 104, 74
     CONTROL  "En",  IDC_CHK_EN_4,    "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,  6,248,18,10
     LTEXT    "Ch:", IDC_STATIC,                                                     26,248,12,10
     CONTROL  "",    IDC_EDIT_CH_4,   "CustEdit",       WS_TABSTOP,                  38,247,14,12
@@ -170,17 +170,17 @@ BEGIN
     CONTROL  "",  IDC_EDIT_WALLYBIAS,  "CustEdit",       WS_TABSTOP,                83,341,16,12
     CONTROL  "",  IDC_SPIN_WALLYBIAS,  "SpinnerControl", WS_TABSTOP,                99,341, 7,12
 
-    LTEXT    "Fl Bias:", IDC_STATIC,                                                 6,356,26,10
+    LTEXT    "Top Bias", IDC_STATIC,                                                 6,356,26,10
     CONTROL  "",  IDC_EDIT_FLOORBIAS,  "CustEdit",       WS_TABSTOP,                34,355,22,12
     CONTROL  "",  IDC_SPIN_FLOORBIAS,  "SpinnerControl", WS_TABSTOP,                56,355, 7,12
-    LTEXT    "Cl Bias:", IDC_STATIC,                                                65,356,26,10
+    LTEXT    "Bot Bias", IDC_STATIC,                                                65,356,26,10
     CONTROL  "",  IDC_EDIT_CEILBIAS,   "CustEdit",       WS_TABSTOP,                83,355,16,12
     CONTROL  "",  IDC_SPIN_CEILBIAS,   "SpinnerControl", WS_TABSTOP,                99,355, 7,12
 
-    LTEXT    "Fl Start:",IDC_STATIC,                                                 6,370,30,10
+    LTEXT    "Top Start",IDC_STATIC,                                                 6,370,30,10
     CONTROL  "",  IDC_EDIT_FLOORSTART, "CustEdit",       WS_TABSTOP,                36,369,20,12
     CONTROL  "",  IDC_SPIN_FLOORSTART, "SpinnerControl", WS_TABSTOP,                56,369, 7,12
-    LTEXT    "Cl Start:",IDC_STATIC,                                                65,370,30,10
+    LTEXT    "Bot Start",IDC_STATIC,                                                65,370,30,10
     CONTROL  "",  IDC_EDIT_CEILSTART,  "CustEdit",       WS_TABSTOP,                95,369, 4,12
     CONTROL  "",  IDC_SPIN_CEILSTART,  "SpinnerControl", WS_TABSTOP,                99,369, 7,12
 
