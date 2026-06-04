@@ -29,6 +29,7 @@
 
 #include <max.h>
 #include <iparamb2.h>
+#include <iparamm2.h>
 #include <modstack.h>
 #include <object.h>
 #include <mesh.h>
@@ -291,6 +292,38 @@ private:
 void* EZBoxTriAOClassDesc::Create(BOOL) { return new EZBoxTriAO(); }
 
 // ---------------------------------------------------------------------------
+// DlgProc — makes the Preview checkbox behave like a DCM's display toggle:
+// when toggled, it also turns the selected object's vertex-color display on/off
+// so the ch0 AO write is immediately visible without manual setup.
+// ---------------------------------------------------------------------------
+
+class EZAODlgProc : public ParamMap2UserDlgProc
+{
+public:
+    INT_PTR DlgProc(TimeValue, IParamMap2*, HWND hWnd,
+                    UINT msg, WPARAM wParam, LPARAM) override
+    {
+        if (msg == WM_COMMAND && LOWORD(wParam) == IDC_AO_CHK_PREVIEW)
+        {
+            const bool on = (IsDlgButtonChecked(hWnd, IDC_AO_CHK_PREVIEW) == BST_CHECKED);
+            Interface* ip = GetCOREInterface();
+            INode* node = ip ? ip->GetSelNode(0) : nullptr;
+            if (node)
+            {
+                node->SetCVertMode(on ? 1 : 0);     // show vertex colours
+                node->SetVertexColorType(0);        // 0 = vertex colour (map ch 0)
+                node->SetShadeCVerts(FALSE);        // raw, unshaded, for inspection
+                if (ip) ip->ForceCompleteRedraw();
+            }
+        }
+        return FALSE;
+    }
+    void DeleteThis() override {} // static instance
+};
+
+static EZAODlgProc g_AODlgProc;
+
+// ---------------------------------------------------------------------------
 // ParamBlockDesc2
 // ---------------------------------------------------------------------------
 
@@ -299,7 +332,7 @@ static ParamBlockDesc2 g_AOPBlock
     kAOPBlock, _T("params"), IDS_AO_PARAMS, &g_EZBoxTriAODesc,
     P_AUTO_CONSTRUCT | P_AUTO_UI,
     0,
-    IDD_PANEL_AO, IDS_AO_PARAMS, 0, 0, nullptr,
+    IDD_PANEL_AO, IDS_AO_PARAMS, 0, 0, &g_AODlgProc,
 
     pb_ao_ch, _T("aoChannel"), TYPE_INT, P_ANIMATABLE, IDS_AO_CH,
         p_default, 11, p_range, 1, 99,
