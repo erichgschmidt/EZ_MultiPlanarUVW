@@ -159,8 +159,11 @@ public:
         Mesh& mesh = tri->GetMesh();
         if (mesh.numVerts <= 0 || mesh.numFaces <= 0) return;
         Apply(t, mesh);
+        // AO only writes a texture/vertex-colour channel. Do NOT invalidate the
+        // topology cache: topology is unchanged, and forcing a rebuild on a mesh
+        // that carries the mapper's face-corner map tables can crash. Flushing
+        // the geom cache is enough to refresh the display.
         mesh.InvalidateGeomCache();
-        mesh.InvalidateTopologyCache();
         tri->UpdateValidity(TEXMAP_CHAN_NUM, LocalValidity(t));
     }
 
@@ -236,6 +239,11 @@ private:
         mesh.setNumMapVerts(ch, nv, FALSE);
         mesh.setNumMapFaces(ch, mesh.numFaces, FALSE);
         MeshMap& map = mesh.Map(ch);
+        // Defensive: bail if the channel allocation didn't take, rather than
+        // writing into null/undersized arrays (hard crash).
+        if (!map.tf || !map.tv ||
+            map.fnum < mesh.numFaces || map.vnum < nv)
+            return;
         for (int f = 0; f < mesh.numFaces; ++f)
         {
             map.tf[f].t[0] = mesh.faces[f].v[0];
@@ -247,15 +255,23 @@ private:
         // so it's visible in the Nitrous viewport. Overlays the blend preview
         // since this modifier sits above EZ BoxTri in the stack. Enable the
         // object's Vertex Color display to see it.
-        if (preview)
+        bool doPreview = preview;
+        if (doPreview)
         {
             mesh.setNumVertCol(nv, FALSE);
             mesh.setNumVCFaces(mesh.numFaces, FALSE);
-            for (int f = 0; f < mesh.numFaces; ++f)
+            if (!mesh.vcFace || !mesh.vertCol)
             {
-                mesh.vcFace[f].t[0] = mesh.faces[f].v[0];
-                mesh.vcFace[f].t[1] = mesh.faces[f].v[1];
-                mesh.vcFace[f].t[2] = mesh.faces[f].v[2];
+                doPreview = false;   // allocation didn't take -> skip safely
+            }
+            else
+            {
+                for (int f = 0; f < mesh.numFaces; ++f)
+                {
+                    mesh.vcFace[f].t[0] = mesh.faces[f].v[0];
+                    mesh.vcFace[f].t[1] = mesh.faces[f].v[1];
+                    mesh.vcFace[f].t[2] = mesh.faces[f].v[2];
+                }
             }
         }
 
@@ -284,7 +300,7 @@ private:
             const float ao = 1.0f - occ;
 
             map.tv[v] = gray ? Point3(ao, ao, ao) : Point3(ao, 0.0f, 0.0f);
-            if (preview) mesh.vertCol[v] = Point3(ao, ao, ao);
+            if (doPreview) mesh.vertCol[v] = Point3(ao, ao, ao);
         }
     }
 };
