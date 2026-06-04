@@ -178,6 +178,7 @@
 #define IDS_AO_STRENGTH  105
 #define IDS_AO_GRAY      106
 #define IDS_AO_PREVIEW   107
+#define IDS_AO_INVERT    108
 
 // AO control IDs (2000+)
 #define IDC_AO_EDIT_CH        2000
@@ -192,3 +193,4 @@
 #define IDC_AO_SPIN_STRENGTH  2009
 #define IDC_AO_CHK_GRAY       2010
 #define IDC_AO_CHK_PREVIEW    2011
+#define IDC_AO_CHK_INVERT     2012

@@ -48,6 +48,30 @@ extern HINSTANCE hInstance;
 static const TCHAR* kAOName     = _T("EZ BoxTri AO");
 static const TCHAR* kAOCategory = _T("EZ Tools");
 
+// ---------------------------------------------------------------------------
+// Crash diagnostic logger. Keep the call sites as cheap no-ops so targeted
+// logging can be re-enabled quickly if another stack-order issue appears.
+// ---------------------------------------------------------------------------
+#define kAODebugLog 0
+static void AOLog(const char* msg)
+{
+#if kAODebugLog
+    FILE* f = fopen("C:\\Users\\Gus\\Documents\\maxdev_plugins\\ez_ao_log.txt", "a");
+    if (f) { fputs(msg, f); fputc('\n', f); fclose(f); }
+#else
+    (void)msg;
+#endif
+}
+static void AOLogI(const char* fmt, int a, int b = 0)
+{
+#if kAODebugLog
+    char buf[256]; _snprintf_s(buf, sizeof(buf), _TRUNCATE, fmt, a, b);
+    AOLog(buf);
+#else
+    (void)fmt; (void)a; (void)b;
+#endif
+}
+
 enum AOParamBlockIDs { kAOPBlock = 0 };
 
 enum AOParamIDs
@@ -58,7 +82,8 @@ enum AOParamIDs
     pb_ao_down,
     pb_ao_strength,
     pb_ao_gray,
-    pb_ao_preview
+    pb_ao_preview,
+    pb_ao_invert
 };
 
 // ---------------------------------------------------------------------------
@@ -150,21 +175,25 @@ public:
 
     void ModifyObject(TimeValue t, ModContext&, ObjectState* os, INode*) override
     {
-        if (!os || !os->obj || !pblock) return;
+        AOLog("MO: enter");
+        if (!os || !os->obj || !pblock) { AOLog("MO: null os/obj/pblock -> ret"); return; }
         const Class_ID triID(TRIOBJ_CLASS_ID, 0);
-        if (!os->obj->CanConvertToType(triID)) return;
+        if (!os->obj->CanConvertToType(triID)) { AOLog("MO: cannot convert -> ret"); return; }
         TriObject* tri = static_cast<TriObject*>(os->obj->ConvertToType(t, triID));
-        if (!tri) return;
+        if (!tri) { AOLog("MO: tri null -> ret"); return; }
         if (os->obj != tri) os->obj = tri;
         Mesh& mesh = tri->GetMesh();
-        if (mesh.numVerts <= 0 || mesh.numFaces <= 0) return;
+        AOLogI("MO: mesh nv=%d nf=%d", mesh.numVerts, mesh.numFaces);
+        if (mesh.numVerts <= 0 || mesh.numFaces <= 0) { AOLog("MO: empty mesh -> ret"); return; }
         Apply(t, mesh);
+        AOLog("MO: apply done");
         // AO only writes a texture/vertex-colour channel. Do NOT invalidate the
         // topology cache: topology is unchanged, and forcing a rebuild on a mesh
         // that carries the mapper's face-corner map tables can crash. Flushing
         // the geom cache is enough to refresh the display.
         mesh.InvalidateGeomCache();
         tri->UpdateValidity(TEXMAP_CHAN_NUM, LocalValidity(t));
+        AOLog("MO: exit");
     }
 
 private:
@@ -198,6 +227,7 @@ private:
 
     void Apply(TimeValue t, Mesh& mesh) const
     {
+        AOLog("Apply: enter");
         const int   ch       = ClampCh(PBi(pb_ao_ch,       t, 11));
         const float wCav     = std::max(0.0f, PBf(pb_ao_cavity,   t, 1.0f));
         const float wHgt     = std::max(0.0f, PBf(pb_ao_height,   t, 0.0f));
@@ -205,6 +235,7 @@ private:
         const float strength = std::max(0.0f, PBf(pb_ao_strength, t, 1.0f));
         const bool  gray     = PBb(pb_ao_gray,    t, FALSE) != FALSE;
         const bool  preview  = PBb(pb_ao_preview, t, FALSE) != FALSE;
+        const bool  invert   = PBb(pb_ao_invert,  t, FALSE) != FALSE;
 
         const int nv = mesh.numVerts;
 
@@ -215,13 +246,23 @@ private:
         const Point3 mn = b.Min();
         const float zRange = SafeDim(b.Max().z - mn.z);
 
+        // A face is only safe to touch if all 3 indices are in range. During a
+        // stack re-eval (toggling this modifier on/off over the mapper) the mesh
+        // can transiently present out-of-range indices; an unguarded vn[v] write
+        // would corrupt the heap (hard crash later in ntdll).
+        auto faceValid = [nv](const Face& fc) -> bool
+        {
+            return fc.v[0] < (DWORD)nv && fc.v[1] < (DWORD)nv && fc.v[2] < (DWORD)nv;
+        };
+
         // Smoothed vertex normals + neighbour-centroid accumulation (one pass)
         std::vector<Point3> vn(nv, Point3(0,0,0));
         std::vector<Point3> nbrSum(nv, Point3(0,0,0));
         std::vector<int>    nbrCnt(nv, 0);
         for (int f = 0; f < mesh.numFaces; ++f)
         {
-            const Face&  fc = mesh.faces[f];
+            const Face& fc = mesh.faces[f];
+            if (!faceValid(fc)) continue;
             const Point3 fn = FaceNormal(mesh, f);
             for (int c = 0; c < 3; ++c)
             {
@@ -234,47 +275,35 @@ private:
             }
         }
 
+        AOLog("Apply: normals loop done");
         // Build the AO channel (welded per-vertex: smooth gradient, compact)
+        AOLogI("Apply: EnsureChannel ch=%d numMaps(before)=%d", ch, mesh.getNumMaps());
         EnsureChannel(mesh, ch);
+        AOLogI("Apply: post-ensure numMaps=%d support=%d", mesh.getNumMaps(), mesh.mapSupport(ch));
         mesh.setNumMapVerts(ch, nv, FALSE);
         mesh.setNumMapFaces(ch, mesh.numFaces, FALSE);
+        AOLog("Apply: setNumMap done");
         MeshMap& map = mesh.Map(ch);
+        AOLogI("Apply: Map() fnum=%d vnum=%d", map.fnum, map.vnum);
         // Defensive: bail if the channel allocation didn't take, rather than
         // writing into null/undersized arrays (hard crash).
         if (!map.tf || !map.tv ||
             map.fnum < mesh.numFaces || map.vnum < nv)
-            return;
+            { AOLog("Apply: map alloc short -> ret"); return; }
+        const DWORD nvMax = (DWORD)(nv - 1);
         for (int f = 0; f < mesh.numFaces; ++f)
         {
-            map.tf[f].t[0] = mesh.faces[f].v[0];
-            map.tf[f].t[1] = mesh.faces[f].v[1];
-            map.tf[f].t[2] = mesh.faces[f].v[2];
+            // Clamp indices so a transiently-bad face can't store an out-of-range
+            // map-vert reference (which a downstream channel reader would OOB on).
+            const Face& fc = mesh.faces[f];
+            map.tf[f].t[0] = std::min<DWORD>(fc.v[0], nvMax);
+            map.tf[f].t[1] = std::min<DWORD>(fc.v[1], nvMax);
+            map.tf[f].t[2] = std::min<DWORD>(fc.v[2], nvMax);
         }
+        AOLog("Apply: tf loop done");
 
-        // Optional viewport preview: mirror AO into vertex-color ch0 (grayscale)
-        // so it's visible in the Nitrous viewport. Overlays the blend preview
-        // since this modifier sits above EZ BoxTri in the stack. Enable the
-        // object's Vertex Color display to see it.
-        bool doPreview = preview;
-        if (doPreview)
-        {
-            mesh.setNumVertCol(nv, FALSE);
-            mesh.setNumVCFaces(mesh.numFaces, FALSE);
-            if (!mesh.vcFace || !mesh.vertCol)
-            {
-                doPreview = false;   // allocation didn't take -> skip safely
-            }
-            else
-            {
-                for (int f = 0; f < mesh.numFaces; ++f)
-                {
-                    mesh.vcFace[f].t[0] = mesh.faces[f].v[0];
-                    mesh.vcFace[f].t[1] = mesh.faces[f].v[1];
-                    mesh.vcFace[f].t[2] = mesh.faces[f].v[2];
-                }
-            }
-        }
-
+        // Compute per-vertex AO, store it, and write the ch11 (welded) channel.
+        std::vector<float> aoVal((size_t)nv, 1.0f);
         for (int v = 0; v < nv; ++v)
         {
             Point3 n = vn[v];
@@ -297,56 +326,56 @@ private:
 
             float occ = wCav * cav + wHgt * hgt + wDwn * dwn;
             occ = std::clamp(occ * strength, 0.0f, 1.0f);
-            const float ao = 1.0f - occ;
+            // Default: 1 = lit/open, 0 = occluded. Invert to store occlusion
+            // amount instead (1 = occluded), to match shaders that expect that.
+            const float ao = invert ? occ : (1.0f - occ);
 
+            aoVal[v] = ao;
             map.tv[v] = gray ? Point3(ao, ao, ao) : Point3(ao, 0.0f, 0.0f);
-            if (doPreview) mesh.vertCol[v] = Point3(ao, ao, ao);
         }
+        AOLog("Apply: tv(ch11) loop done");
+
+        // Optional viewport preview: mirror AO into vertex-colour ch0 (grayscale).
+        // CRITICAL: write ch0 with FACE-CORNER topology (3 cverts per face) so it
+        // matches the mapper's ch0 below us. The previous welded write shrank
+        // ch0 from 3*faces down to numVerts, restructuring the legacy vertCol
+        // state that is aliased into the unified map table -> heap corruption /
+        // hard crash when stacked over EZ BoxTri. Same-topology overwrite is safe.
+        if (preview)
+        {
+            const int ncv = mesh.numFaces * 3;
+            mesh.setNumVertCol(ncv, FALSE);
+            mesh.setNumVCFaces(mesh.numFaces, FALSE);
+            if (mesh.vcFace && mesh.vertCol)
+            {
+                for (int f = 0; f < mesh.numFaces; ++f)
+                {
+                    const Face& fc = mesh.faces[f];
+                    for (int c = 0; c < 3; ++c)
+                    {
+                        const int corner = f * 3 + c;
+                        mesh.vcFace[f].t[c] = (DWORD)corner;
+                        const DWORD vv = fc.v[c];
+                        const float a = (vv < (DWORD)nv) ? aoVal[vv] : 1.0f;
+                        mesh.vertCol[corner] = Point3(a, a, a);
+                    }
+                }
+            }
+            AOLog("Apply: preview(face-corner) done");
+        }
+        AOLog("Apply: exit");
     }
 };
 
 void* EZBoxTriAOClassDesc::Create(BOOL) { return new EZBoxTriAO(); }
 
 // ---------------------------------------------------------------------------
-// DlgProc — makes the Preview checkbox behave like a DCM's display toggle:
-// when toggled, it also turns the selected object's vertex-color display on/off
-// so the ch0 AO write is immediately visible without manual setup.
-// ---------------------------------------------------------------------------
-
-class EZAODlgProc : public ParamMap2UserDlgProc
-{
-public:
-    INT_PTR DlgProc(TimeValue, IParamMap2*, HWND hWnd,
-                    UINT msg, WPARAM wParam, LPARAM) override
-    {
-        if (msg == WM_COMMAND && HIWORD(wParam) == BN_CLICKED
-            && LOWORD(wParam) == IDC_AO_CHK_PREVIEW)
-        {
-            const bool on = (IsDlgButtonChecked(hWnd, IDC_AO_CHK_PREVIEW) == BST_CHECKED);
-            Interface* ip = GetCOREInterface();
-            INode* node = ip ? ip->GetSelNode(0) : nullptr;
-            if (node)
-            {
-                node->SetCVertMode(on ? 1 : 0);     // show vertex colours
-                node->SetVertexColorType(0);        // 0 = vertex colour (map ch 0)
-                node->SetShadeCVerts(FALSE);        // raw, unshaded, for inspection
-            }
-            // IMPORTANT: do NOT call ForceCompleteRedraw() here. It forces an
-            // immediate, synchronous full stack re-evaluation from inside this
-            // UI message handler, re-entering ModifyObject while the ParamMap is
-            // mid-update -> access violation crash. The param change already
-            // invalidates the modifier and the SetCVertMode change dirties the
-            // node display, so Max redraws on its own on the next idle.
-        }
-        return FALSE;
-    }
-    void DeleteThis() override {} // static instance
-};
-
-static EZAODlgProc g_AODlgProc;
-
-// ---------------------------------------------------------------------------
 // ParamBlockDesc2
+//
+// Note: the modifier deliberately does NOT touch the node's vertex-colour
+// display state. "Preview to ch0" only writes data; you control whether
+// vertex colours are shown (Object Properties > Vertex Channel Display, or the
+// test rollout buttons) so your material/shader stays visible when you want it.
 // ---------------------------------------------------------------------------
 
 static ParamBlockDesc2 g_AOPBlock
@@ -354,7 +383,7 @@ static ParamBlockDesc2 g_AOPBlock
     kAOPBlock, _T("params"), IDS_AO_PARAMS, &g_EZBoxTriAODesc,
     P_AUTO_CONSTRUCT | P_AUTO_UI,
     0,
-    IDD_PANEL_AO, IDS_AO_PARAMS, 0, 0, &g_AODlgProc,
+    IDD_PANEL_AO, IDS_AO_PARAMS, 0, 0, nullptr,
 
     pb_ao_ch, _T("aoChannel"), TYPE_INT, P_ANIMATABLE, IDS_AO_CH,
         p_default, 11, p_range, 1, 99,
@@ -381,6 +410,9 @@ static ParamBlockDesc2 g_AOPBlock
     p_end,
     pb_ao_preview, _T("preview"), TYPE_BOOL, P_ANIMATABLE, IDS_AO_PREVIEW,
         p_default, FALSE, p_ui, TYPE_SINGLECHEKBOX, IDC_AO_CHK_PREVIEW,
+    p_end,
+    pb_ao_invert, _T("invert"), TYPE_BOOL, P_ANIMATABLE, IDS_AO_INVERT,
+        p_default, FALSE, p_ui, TYPE_SINGLECHEKBOX, IDC_AO_CHK_INVERT,
     p_end,
 
     p_end
