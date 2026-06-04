@@ -221,8 +221,15 @@ rollout EZ_BoxTri_TestRollout "EZ BoxTri Test Materials" width:248
             local mv = 0
             try sup = meshop.getMapSupport tm ch catch()
             try mv  = meshop.getNumMapVerts tm ch catch()
-            format "----- AO channel % : support:% mapVerts:% -----\n" ch sup mv
-            if sup and mv > 0 do
+
+            local msg = ""
+            if not sup or mv == 0 then
+            (
+                msg = ("AO channel " + (ch as string) + " has NO data.\n" + \
+                       "support:" + (sup as string) + " mapVerts:" + (mv as string) + \
+                       "\n\nIs AO enabled on the modifier?")
+            )
+            else
             (
                 local rMin = 1e9, rMax = -1e9, rSum = 0.0
                 for i = 1 to mv do
@@ -232,9 +239,18 @@ rollout EZ_BoxTri_TestRollout "EZ BoxTri Test Materials" width:248
                     if c.x > rMax do rMax = c.x
                     rSum += c.x
                 )
-                format "  AO (red) min:% max:% avg:%\n" rMin rMax (rSum / mv)
+                local rAvg = rSum / mv
+                local verdict = if (rMax - rMin) < 0.001 then \
+                    "FLAT (no variation) - expected on a convex mesh with cavity-only.\nAdd Height/Down or use concave geo to see variation." \
+                    else "VARYING - AO is computing per-vertex. Working."
+                msg = ("AO channel " + (ch as string) + "  (" + (mv as string) + " map verts)\n\n" + \
+                       "red min: " + (rMin as string) + "\n" + \
+                       "red max: " + (rMax as string) + "\n" + \
+                       "red avg: " + (rAvg as string) + "\n\n" + verdict)
             )
             free tm
+            format "%\n" msg
+            messageBox msg title:("AO Sample - ch " + (ch as string))
         )
     )
 
