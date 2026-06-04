@@ -60,16 +60,9 @@ BEGIN
     IDS_PREVIEWCH    "PreviewChannel"
     IDS_PREVIEWMODE  "PreviewMode"
     IDS_SIGNEDFIX    "SignedAxisFix"
-    IDS_AO_EN        "AOEnable"
-    IDS_AO_CH        "AOChannel"
-    IDS_AO_CAVITY    "AOCavity"
-    IDS_AO_HEIGHT    "AOHeight"
-    IDS_AO_DOWN      "AODown"
-    IDS_AO_STRENGTH  "AOStrength"
-    IDS_AO_GRAY      "AOGrayscale"
 END
 
-IDD_PANEL DIALOG 0, 0, 108, 576
+IDD_PANEL DIALOG 0, 0, 108, 502
 STYLE DS_SETFONT | WS_CHILD | WS_VISIBLE
 FONT 8, "MS Sans Serif"
 BEGIN
@@ -205,24 +198,42 @@ BEGIN
     LTEXT    "Mode:",       IDC_STATIC,                                              6,460,22,10
     COMBOBOX        IDC_COMBO_PREVMODE,                                              30,459,72,80, CBS_DROPDOWNLIST|WS_TABSTOP
     CONTROL  "Signed-Axis Fix",IDC_CHK_SIGNEDFIX, "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,476,76,10
+END
 
-    // ============================================================  AO  y=508
-    GROUPBOX "AO (ch 11)", IDC_STATIC, 2, 508, 104, 64
-    CONTROL  "En",  IDC_CHK_AO_EN,  "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP,    6,520,18,10
-    LTEXT    "Ch:", IDC_STATIC,                                                     26,520,12,10
-    CONTROL  "",    IDC_EDIT_AO_CH, "CustEdit",       WS_TABSTOP,                    38,519,14,12
-    CONTROL  "",    IDC_SPIN_AO_CH, "SpinnerControl", WS_TABSTOP,                    52,519, 7,12
-    CONTROL  "Gray",IDC_CHK_AO_GRAY,"Button",BS_AUTOCHECKBOX|WS_TABSTOP,            66,520,36,10
-    LTEXT    "Cavity:",   IDC_STATIC,                                                6,534,28,10
-    CONTROL  "",  IDC_EDIT_AO_CAVITY,  "CustEdit",       WS_TABSTOP,                34,533,22,12
-    CONTROL  "",  IDC_SPIN_AO_CAVITY,  "SpinnerControl", WS_TABSTOP,                56,533, 7,12
-    LTEXT    "Height:",   IDC_STATIC,                                               65,534,24,10
-    CONTROL  "",  IDC_EDIT_AO_HEIGHT,  "CustEdit",       WS_TABSTOP,                83,533,16,12
-    CONTROL  "",  IDC_SPIN_AO_HEIGHT,  "SpinnerControl", WS_TABSTOP,                99,533, 7,12
-    LTEXT    "Down:",     IDC_STATIC,                                                6,548,28,10
-    CONTROL  "",  IDC_EDIT_AO_DOWN,    "CustEdit",       WS_TABSTOP,                34,547,22,12
-    CONTROL  "",  IDC_SPIN_AO_DOWN,    "SpinnerControl", WS_TABSTOP,                56,547, 7,12
-    LTEXT    "Strength:", IDC_STATIC,                                               65,548,24,10
-    CONTROL  "",  IDC_EDIT_AO_STRENGTH,"CustEdit",       WS_TABSTOP,                83,547,16,12
-    CONTROL  "",  IDC_SPIN_AO_STRENGTH,"SpinnerControl", WS_TABSTOP,                99,547, 7,12
+// ===========================================================================
+//  EZ BoxTri AO  (second modifier)
+// ===========================================================================
+
+STRINGTABLE
+BEGIN
+    IDS_AO_PARAMS    "Parameters"
+    IDS_AO_CH        "AOChannel"
+    IDS_AO_CAVITY    "Cavity"
+    IDS_AO_HEIGHT    "Height"
+    IDS_AO_DOWN      "Down"
+    IDS_AO_STRENGTH  "Strength"
+    IDS_AO_GRAY      "Grayscale"
+END
+
+IDD_PANEL_AO DIALOG 0, 0, 108, 70
+STYLE DS_SETFONT | WS_CHILD | WS_VISIBLE
+FONT 8, "MS Sans Serif"
+BEGIN
+    GROUPBOX "AO (pseudo, ch 11)", IDC_STATIC, 2, 2, 104, 64
+    LTEXT    "Ch:", IDC_STATIC,                                                       6,16,12,10
+    CONTROL  "",  IDC_AO_EDIT_CH,      "CustEdit",       WS_TABSTOP,                  20,15,16,12
+    CONTROL  "",  IDC_AO_SPIN_CH,      "SpinnerControl", WS_TABSTOP,                  36,15, 7,12
+    CONTROL  "Grayscale", IDC_AO_CHK_GRAY, "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 50,16,52,10
+    LTEXT    "Cavity:", IDC_STATIC,                                                    6,32,28,10
+    CONTROL  "",  IDC_AO_EDIT_CAVITY,  "CustEdit",       WS_TABSTOP,                  34,31,22,12
+    CONTROL  "",  IDC_AO_SPIN_CAVITY,  "SpinnerControl", WS_TABSTOP,                  56,31, 7,12
+    LTEXT    "Height:", IDC_STATIC,                                                   65,32,24,10
+    CONTROL  "",  IDC_AO_EDIT_HEIGHT,  "CustEdit",       WS_TABSTOP,                  83,31,16,12
+    CONTROL  "",  IDC_AO_SPIN_HEIGHT,  "SpinnerControl", WS_TABSTOP,                  99,31, 7,12
+    LTEXT    "Down:", IDC_STATIC,                                                      6,46,28,10
+    CONTROL  "",  IDC_AO_EDIT_DOWN,    "CustEdit",       WS_TABSTOP,                  34,45,22,12
+    CONTROL  "",  IDC_AO_SPIN_DOWN,    "SpinnerControl", WS_TABSTOP,                  56,45, 7,12
+    LTEXT    "Strength:", IDC_STATIC,                                                 65,46,24,10
+    CONTROL  "",  IDC_AO_EDIT_STRENGTH,"CustEdit",       WS_TABSTOP,                  83,45,16,12
+    CONTROL  "",  IDC_AO_SPIN_STRENGTH,"SpinnerControl", WS_TABSTOP,                  99,45, 7,12
 END

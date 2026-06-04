@@ -68,15 +68,6 @@
 #define IDS_PREVIEWMODE  62
 #define IDS_SIGNEDFIX    64
 
-// AO (ch 11)
-#define IDS_AO_EN        65
-#define IDS_AO_CH        66
-#define IDS_AO_CAVITY    67
-#define IDS_AO_HEIGHT    68
-#define IDS_AO_DOWN      69
-#define IDS_AO_STRENGTH  70
-#define IDS_AO_GRAY      71
-
 // ---------------------------------------------------------------------------
 // Control IDs  (per-layer base = 1000 + N*100)
 // ---------------------------------------------------------------------------
@@ -173,16 +164,29 @@
 #define IDC_COMBO_PREVMODE    1604
 #define IDC_CHK_SIGNEDFIX     1606
 
-// AO (base 1700)
-#define IDC_CHK_AO_EN         1700
-#define IDC_EDIT_AO_CH        1701
-#define IDC_SPIN_AO_CH        1702
-#define IDC_EDIT_AO_CAVITY    1703
-#define IDC_SPIN_AO_CAVITY    1704
-#define IDC_EDIT_AO_HEIGHT    1705
-#define IDC_SPIN_AO_HEIGHT    1706
-#define IDC_EDIT_AO_DOWN      1707
-#define IDC_SPIN_AO_DOWN      1708
-#define IDC_EDIT_AO_STRENGTH  1709
-#define IDC_SPIN_AO_STRENGTH  1710
-#define IDC_CHK_AO_GRAY       1711
+// ===========================================================================
+// EZ BoxTri AO  —  second modifier class (own dialog + IDs)
+// ===========================================================================
+#define IDD_PANEL_AO     102
+
+// AO string IDs (100+)
+#define IDS_AO_PARAMS    100
+#define IDS_AO_CH        101
+#define IDS_AO_CAVITY    102
+#define IDS_AO_HEIGHT    103
+#define IDS_AO_DOWN      104
+#define IDS_AO_STRENGTH  105
+#define IDS_AO_GRAY      106
+
+// AO control IDs (2000+)
+#define IDC_AO_EDIT_CH        2000
+#define IDC_AO_SPIN_CH        2001
+#define IDC_AO_EDIT_CAVITY    2002
+#define IDC_AO_SPIN_CAVITY    2003
+#define IDC_AO_EDIT_HEIGHT    2004
+#define IDC_AO_SPIN_HEIGHT    2005
+#define IDC_AO_EDIT_DOWN      2006
+#define IDC_AO_SPIN_DOWN      2007
+#define IDC_AO_EDIT_STRENGTH  2008
+#define IDC_AO_SPIN_STRENGTH  2009
+#define IDC_AO_CHK_GRAY       2010
