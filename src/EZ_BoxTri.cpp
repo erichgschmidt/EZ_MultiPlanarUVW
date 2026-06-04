@@ -263,6 +263,8 @@ public:
     ~EZBoxTri() override = default;
 
     // ---- Animatable --------------------------------------------------------
+    SClass_ID   SuperClassID() override { return OSM_CLASS_ID; }
+    Class_ID    ClassID()      override { return EZ_BOXTRI_CLASS_ID; }
     void        DeleteThis()   override { delete this; }
     int         NumSubs()      override { return 1; }
     Animatable* SubAnim(int i) override { return i == 0 ? pblock : nullptr; }

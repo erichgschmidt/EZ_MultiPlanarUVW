@@ -303,7 +303,8 @@ public:
     INT_PTR DlgProc(TimeValue, IParamMap2*, HWND hWnd,
                     UINT msg, WPARAM wParam, LPARAM) override
     {
-        if (msg == WM_COMMAND && LOWORD(wParam) == IDC_AO_CHK_PREVIEW)
+        if (msg == WM_COMMAND && HIWORD(wParam) == BN_CLICKED
+            && LOWORD(wParam) == IDC_AO_CHK_PREVIEW)
         {
             const bool on = (IsDlgButtonChecked(hWnd, IDC_AO_CHK_PREVIEW) == BST_CHECKED);
             Interface* ip = GetCOREInterface();
@@ -313,8 +314,13 @@ public:
                 node->SetCVertMode(on ? 1 : 0);     // show vertex colours
                 node->SetVertexColorType(0);        // 0 = vertex colour (map ch 0)
                 node->SetShadeCVerts(FALSE);        // raw, unshaded, for inspection
-                if (ip) ip->ForceCompleteRedraw();
             }
+            // IMPORTANT: do NOT call ForceCompleteRedraw() here. It forces an
+            // immediate, synchronous full stack re-evaluation from inside this
+            // UI message handler, re-entering ModifyObject while the ParamMap is
+            // mid-update -> access violation crash. The param change already
+            // invalidates the modifier and the SetCVertMode change dirties the
+            // node display, so Max redraws on its own on the next idle.
         }
         return FALSE;
     }
