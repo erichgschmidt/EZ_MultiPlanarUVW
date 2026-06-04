@@ -56,7 +56,8 @@ enum AOParamIDs
     pb_ao_height,
     pb_ao_down,
     pb_ao_strength,
-    pb_ao_gray
+    pb_ao_gray,
+    pb_ao_preview
 };
 
 // ---------------------------------------------------------------------------
@@ -93,6 +94,8 @@ public:
     ~EZBoxTriAO() override = default;
 
     // ---- Animatable --------------------------------------------------------
+    SClass_ID   SuperClassID() override { return OSM_CLASS_ID; }
+    Class_ID    ClassID()      override { return EZ_BOXTRI_AO_CLASS_ID; }
     void        DeleteThis()   override { delete this; }
     int         NumSubs()      override { return 1; }
     Animatable* SubAnim(int i) override { return i == 0 ? pblock : nullptr; }
@@ -196,7 +199,8 @@ private:
         const float wHgt     = std::max(0.0f, PBf(pb_ao_height,   t, 0.0f));
         const float wDwn     = std::max(0.0f, PBf(pb_ao_down,     t, 0.0f));
         const float strength = std::max(0.0f, PBf(pb_ao_strength, t, 1.0f));
-        const bool  gray     = PBb(pb_ao_gray, t, FALSE) != FALSE;
+        const bool  gray     = PBb(pb_ao_gray,    t, FALSE) != FALSE;
+        const bool  preview  = PBb(pb_ao_preview, t, FALSE) != FALSE;
 
         const int nv = mesh.numVerts;
 
@@ -238,6 +242,22 @@ private:
             map.tf[f].t[2] = mesh.faces[f].v[2];
         }
 
+        // Optional viewport preview: mirror AO into vertex-color ch0 (grayscale)
+        // so it's visible in the Nitrous viewport. Overlays the blend preview
+        // since this modifier sits above EZ BoxTri in the stack. Enable the
+        // object's Vertex Color display to see it.
+        if (preview)
+        {
+            mesh.setNumVertCol(nv, FALSE);
+            mesh.setNumVCFaces(mesh.numFaces, FALSE);
+            for (int f = 0; f < mesh.numFaces; ++f)
+            {
+                mesh.vcFace[f].t[0] = mesh.faces[f].v[0];
+                mesh.vcFace[f].t[1] = mesh.faces[f].v[1];
+                mesh.vcFace[f].t[2] = mesh.faces[f].v[2];
+            }
+        }
+
         for (int v = 0; v < nv; ++v)
         {
             Point3 n = vn[v];
@@ -263,6 +283,7 @@ private:
             const float ao = 1.0f - occ;
 
             map.tv[v] = gray ? Point3(ao, ao, ao) : Point3(ao, 0.0f, 0.0f);
+            if (preview) mesh.vertCol[v] = Point3(ao, ao, ao);
         }
     }
 };
@@ -302,6 +323,9 @@ static ParamBlockDesc2 g_AOPBlock
     p_end,
     pb_ao_gray, _T("grayscale"), TYPE_BOOL, P_ANIMATABLE, IDS_AO_GRAY,
         p_default, FALSE, p_ui, TYPE_SINGLECHEKBOX, IDC_AO_CHK_GRAY,
+    p_end,
+    pb_ao_preview, _T("preview"), TYPE_BOOL, P_ANIMATABLE, IDS_AO_PREVIEW,
+        p_default, FALSE, p_ui, TYPE_SINGLECHEKBOX, IDC_AO_CHK_PREVIEW,
     p_end,
 
     p_end

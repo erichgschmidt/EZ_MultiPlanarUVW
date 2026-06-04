@@ -213,13 +213,14 @@ BEGIN
     IDS_AO_DOWN      "Down"
     IDS_AO_STRENGTH  "Strength"
     IDS_AO_GRAY      "Grayscale"
+    IDS_AO_PREVIEW   "Preview"
 END
 
-IDD_PANEL_AO DIALOG 0, 0, 108, 70
+IDD_PANEL_AO DIALOG 0, 0, 108, 84
 STYLE DS_SETFONT | WS_CHILD | WS_VISIBLE
 FONT 8, "MS Sans Serif"
 BEGIN
-    GROUPBOX "AO (pseudo, ch 11)", IDC_STATIC, 2, 2, 104, 64
+    GROUPBOX "AO (pseudo, ch 11)", IDC_STATIC, 2, 2, 104, 78
     LTEXT    "Ch:", IDC_STATIC,                                                       6,16,12,10
     CONTROL  "",  IDC_AO_EDIT_CH,      "CustEdit",       WS_TABSTOP,                  20,15,16,12
     CONTROL  "",  IDC_AO_SPIN_CH,      "SpinnerControl", WS_TABSTOP,                  36,15, 7,12
@@ -236,4 +237,5 @@ BEGIN
     LTEXT    "Strength:", IDC_STATIC,                                                 65,46,24,10
     CONTROL  "",  IDC_AO_EDIT_STRENGTH,"CustEdit",       WS_TABSTOP,                  83,45,16,12
     CONTROL  "",  IDC_AO_SPIN_STRENGTH,"SpinnerControl", WS_TABSTOP,                  99,45, 7,12
+    CONTROL  "Preview in viewport (writes ch0 gray)", IDC_AO_CHK_PREVIEW, "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,62,98,10
 END
