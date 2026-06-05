@@ -17,7 +17,7 @@
         World X / Y / Z          — raw world coords (tile = world units)
 
     Output channels:
-        UV layer channels        — each enabled layer writes face-corner UVs
+        UV layer channels        — each enabled layer writes welded UV islands
         Blend ch (default 10)    — (R=WallX, G=WallY, B=Floor); ceiling = 1-R-G-B
         Preview ch (default 0)   — RGB by preview mode (5 selectable remaps)
 
@@ -30,10 +30,10 @@
         if hardSnap > 0 and max >= hardSnap: dominant gets 1.0, others 0
         Disabled layers contribute 0 bias.
 
-    Face-corner data:
-        Each face writes 3 unique map-verts (not welded). This kills intra-face
-        gradients on the blend channel (all 3 corners get the same value) and
-        lets per-face signed-axis fixes work without affecting neighbours.
+    UV topology:
+        Texture layer channels weld shared corners into islands where the final
+        UVs match. Blend/preview channels stay face-corner so blend values remain
+        constant per face and debug colour output cannot smear across faces.
 */
 
 #include "resource.h"
@@ -50,6 +50,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <unordered_map>
 #include <vector>
 
 HINSTANCE hInstance = nullptr;
@@ -82,7 +83,8 @@ enum ParamIDs
     pb_hardDom, pb_hardThresh,
     // Output (46-49)
     pb_blendCh, pb_previewCh, pb_previewMode,
-    pb_signedFix
+    pb_signedFix,
+    pb_writePreview
 };
 
 static const int kLayerStride = 9;
@@ -356,6 +358,7 @@ private:
         float hardThresh;
         int   blendCh, previewCh, previewMode;
         bool  signedFix;
+        bool  writePreview;
     };
 
     static int   ClampCh(int ch) { return std::clamp(ch, 1, 99); }
@@ -400,6 +403,7 @@ private:
         cfg.previewCh   = std::clamp(PBi((ParamID)pb_previewCh, t, 0), 0, 99);
         cfg.previewMode = std::clamp(PBi((ParamID)pb_previewMode, t, 3), 1, 5);
         cfg.signedFix   = PBb((ParamID)pb_signedFix, t, TRUE) != FALSE;
+        cfg.writePreview = PBb((ParamID)pb_writePreview, t, FALSE) != FALSE;
     }
 
     // ========================================================================
@@ -610,6 +614,119 @@ private:
         }
     }
 
+    struct UVIslandKey
+    {
+        DWORD v;
+        long long u;
+        long long w;
+
+        bool operator==(const UVIslandKey& o) const
+        {
+            return v == o.v && u == o.u && w == o.w;
+        }
+    };
+
+    struct UVIslandKeyHash
+    {
+        size_t operator()(const UVIslandKey& k) const
+        {
+            size_t h = std::hash<DWORD>{}(k.v);
+            h ^= std::hash<long long>{}(k.u) + 0x9e3779b9u + (h << 6) + (h >> 2);
+            h ^= std::hash<long long>{}(k.w) + 0x9e3779b9u + (h << 6) + (h >> 2);
+            return h;
+        }
+    };
+
+    static long long QuantizeUV(float v)
+    {
+        return (long long)std::llround((double)v * 1000000.0);
+    }
+
+    static Point3 FinalLayerUV(
+        const Mesh& mesh, const Face& fc, int corner,
+        const Point3& mn, const Point3& mx, const Point3& centre,
+        const LayerCfg& L, bool signedFlipU)
+    {
+        const Point3& p = mesh.verts[fc.v[corner]];
+        Point3 uv = UVFromMapping(p, mn, mx, centre, L.type, signedFlipU);
+        if (L.flipU) uv.x = 1.0f - uv.x;
+        if (L.flipV) uv.y = 1.0f - uv.y;
+        uv.x = uv.x * L.uTile + L.uOff;
+        uv.y = uv.y * L.vTile + L.vOff;
+        return uv;
+    }
+
+    bool FaceIndicesValid(const Mesh& mesh, const Face& fc) const
+    {
+        const DWORD nv = (DWORD)mesh.numVerts;
+        return fc.v[0] < nv && fc.v[1] < nv && fc.v[2] < nv;
+    }
+
+    // Texture layers should appear as usable UV islands in Unwrap UVW, not as
+    // disconnected per-triangle shells. Weld by original mesh vertex plus final
+    // UV, preserving seams where signed-axis flips or mapping changes produce a
+    // different coordinate at the same vertex.
+    void BuildLayerIslandChannel(
+        Mesh& mesh, int ch, const LayerCfg& L,
+        const Point3& mn, const Point3& mx, const Point3& centre,
+        bool signedFix) const
+    {
+        if (ch < 1 || ch > 99) return;
+
+        EnsureChannel(mesh, ch);
+        mesh.setNumMapFaces(ch, mesh.numFaces, FALSE);
+        MeshMap& map = mesh.Map(ch);
+        if (!map.tf) return;
+
+        std::vector<Point3> mapVerts;
+        mapVerts.reserve((size_t)std::max(mesh.numVerts, 1));
+        std::unordered_map<UVIslandKey, DWORD, UVIslandKeyHash> lookup;
+        lookup.reserve((size_t)std::max(mesh.numVerts * 2, 8));
+
+        for (int f = 0; f < mesh.numFaces; ++f)
+        {
+            const Face& fc = mesh.faces[f];
+            if (!FaceIndicesValid(mesh, fc))
+            {
+                map.tf[f].t[0] = map.tf[f].t[1] = map.tf[f].t[2] = 0;
+                continue;
+            }
+
+            const Point3 fN = FaceNormal(mesh, f);
+            bool signedFlipU = false;
+            if (signedFix && IsPlanarBounded(L.type))
+            {
+                const int axis = PlanarAxisOf(L.type);
+                const float comp = (axis == 0) ? fN.x : (axis == 1) ? fN.y : fN.z;
+                signedFlipU = comp < 0.0f;
+            }
+
+            for (int c = 0; c < 3; ++c)
+            {
+                const Point3 uv = FinalLayerUV(mesh, fc, c, mn, mx, centre, L, signedFlipU);
+                const UVIslandKey key{ fc.v[c], QuantizeUV(uv.x), QuantizeUV(uv.y) };
+
+                auto it = lookup.find(key);
+                if (it == lookup.end())
+                {
+                    const DWORD idx = (DWORD)mapVerts.size();
+                    mapVerts.push_back(uv);
+                    it = lookup.emplace(key, idx).first;
+                }
+                map.tf[f].t[c] = it->second;
+            }
+        }
+
+        if (mapVerts.empty())
+            mapVerts.push_back(Point3(0, 0, 0));
+
+        mesh.setNumMapVerts(ch, (int)mapVerts.size(), FALSE);
+        MeshMap& finalMap = mesh.Map(ch);
+        if (!finalMap.tv) return;
+        for (int i = 0; i < (int)mapVerts.size(); ++i)
+            finalMap.tv[i] = mapVerts[(size_t)i];
+    }
+
     // ========================================================================
     // Top-level apply
     // ========================================================================
@@ -626,23 +743,26 @@ private:
         const Point3 mx = bounds.Max();
         const Point3 centre = (mn + mx) * 0.5f;
 
-        // Pre-allocate every channel we'll write to (face-corner topology)
+        // Texture layers are welded into UV islands. Blend/preview remain
+        // face-corner because they are per-face diagnostic/blend payloads.
         for (int r = 0; r < 4; ++r)
             if (cfg.layer[r].enabled)
-                PrepareFaceCornerChannel(mesh, cfg.layer[r].channel);
+                BuildLayerIslandChannel(mesh, cfg.layer[r].channel, cfg.layer[r],
+                                        mn, mx, centre, cfg.signedFix);
         PrepareFaceCornerChannel(mesh, cfg.blendCh);
-        PrepareFaceCornerChannel(mesh, cfg.previewCh);
+        // Preview (vertex-colour-style RGB) is OFF by default: only prepared and
+        // written when Write Preview is enabled, so the mapper doesn't paint
+        // vertex colours onto the model unless the user asks. The blend channel
+        // (ch10) is always written regardless.
+        if (cfg.writePreview)
+            PrepareFaceCornerChannel(mesh, cfg.previewCh);
 
         // Cache channel/map refs to avoid Mesh::Map() lookups in the inner loop.
         // If preview/blend share a channel with a layer or with each other,
         // the later write wins — intentional, user can pick distinct channels.
-        MeshMap* layerMap[4] = { nullptr, nullptr, nullptr, nullptr };
-        for (int r = 0; r < 4; ++r)
-            if (cfg.layer[r].enabled)
-                layerMap[r] = &mesh.Map(cfg.layer[r].channel);
         MeshMap* blendMap   = &mesh.Map(cfg.blendCh);
         const bool previewIsVC = (cfg.previewCh == 0);
-        MeshMap* previewMap = previewIsVC ? nullptr : &mesh.Map(cfg.previewCh);
+        MeshMap* previewMap = (cfg.writePreview && !previewIsVC) ? &mesh.Map(cfg.previewCh) : nullptr;
 
         // Per-face main loop
         for (int f = 0; f < mesh.numFaces; ++f)
@@ -655,6 +775,7 @@ private:
 
             const int mvBase = f * 3;
 
+#if 0
             // Per-layer UV write
             for (int r = 0; r < 4; ++r)
             {
@@ -685,22 +806,27 @@ private:
             }
 
             // Blend ch — constant per face (kills intra-face gradient)
+#endif
             blendMap->tv[mvBase    ] = blendUV;
             blendMap->tv[mvBase + 1] = blendUV;
             blendMap->tv[mvBase + 2] = blendUV;
 
-            // Preview ch (ch 0 routed to legacy vertCol)
-            if (previewIsVC)
+            // Preview ch — only when Write Preview is enabled (ch 0 routed to
+            // legacy vertCol). Off by default so vertex colours aren't painted.
+            if (cfg.writePreview)
             {
-                mesh.vertCol[mvBase    ] = prevUV;
-                mesh.vertCol[mvBase + 1] = prevUV;
-                mesh.vertCol[mvBase + 2] = prevUV;
-            }
-            else
-            {
-                previewMap->tv[mvBase    ] = prevUV;
-                previewMap->tv[mvBase + 1] = prevUV;
-                previewMap->tv[mvBase + 2] = prevUV;
+                if (previewIsVC)
+                {
+                    mesh.vertCol[mvBase    ] = prevUV;
+                    mesh.vertCol[mvBase + 1] = prevUV;
+                    mesh.vertCol[mvBase + 2] = prevUV;
+                }
+                else if (previewMap)
+                {
+                    previewMap->tv[mvBase    ] = prevUV;
+                    previewMap->tv[mvBase + 1] = prevUV;
+                    previewMap->tv[mvBase + 2] = prevUV;
+                }
             }
         }
     }
@@ -817,6 +943,9 @@ static ParamBlockDesc2 g_MainPBlock
     p_end,
     pb_signedFix, _T("signedFix"), TYPE_BOOL, P_ANIMATABLE, IDS_SIGNEDFIX,
         p_default, TRUE, p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_SIGNEDFIX,
+    p_end,
+    pb_writePreview, _T("writePreview"), TYPE_BOOL, P_ANIMATABLE, IDS_WRITEPREVIEW,
+        p_default, FALSE, p_ui, TYPE_SINGLECHEKBOX, IDC_CHK_WRITEPREVIEW,
     p_end,
 
     p_end

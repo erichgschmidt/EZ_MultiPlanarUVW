@@ -60,9 +60,10 @@ BEGIN
     IDS_PREVIEWCH    "PreviewChannel"
     IDS_PREVIEWMODE  "PreviewMode"
     IDS_SIGNEDFIX    "SignedAxisFix"
+    IDS_WRITEPREVIEW "WritePreview"
 END
 
-IDD_PANEL DIALOG 0, 0, 108, 502
+IDD_PANEL DIALOG 0, 0, 108, 516
 STYLE DS_SETFONT | WS_CHILD | WS_VISIBLE
 FONT 8, "MS Sans Serif"
 BEGIN
@@ -188,7 +189,7 @@ BEGIN
     CONTROL  "Hard Snap",   IDC_CHK_HARDDOM, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,           54,386,46,10
 
     // ============================================================  OUTPUT  y=420
-    GROUPBOX "Output", IDC_STATIC, 2, 420, 104, 82
+    GROUPBOX "Output", IDC_STATIC, 2, 420, 104, 96
     LTEXT    "Blend Ch:",   IDC_STATIC,                                              6,432,32,10
     CONTROL  "",  IDC_EDIT_BLENDCH,   "CustEdit",       WS_TABSTOP,                 40,431,22,12
     CONTROL  "",  IDC_SPIN_BLENDCH,   "SpinnerControl", WS_TABSTOP,                 62,431, 7,12
@@ -197,7 +198,8 @@ BEGIN
     CONTROL  "",  IDC_SPIN_PREVIEWCH, "SpinnerControl", WS_TABSTOP,                 68,445, 7,12
     LTEXT    "Mode:",       IDC_STATIC,                                              6,460,22,10
     COMBOBOX        IDC_COMBO_PREVMODE,                                              30,459,72,80, CBS_DROPDOWNLIST|WS_TABSTOP
-    CONTROL  "Signed-Axis Fix",IDC_CHK_SIGNEDFIX, "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,476,76,10
+    CONTROL  "Write Preview (vtx colour ch0)", IDC_CHK_WRITEPREVIEW, "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,476,98,10
+    CONTROL  "Signed-Axis Fix",IDC_CHK_SIGNEDFIX, "Button",BS_AUTOCHECKBOX|WS_TABSTOP, 6,490,76,10
 END
 
 // ===========================================================================

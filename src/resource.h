@@ -67,6 +67,7 @@
 #define IDS_PREVIEWCH    61
 #define IDS_PREVIEWMODE  62
 #define IDS_SIGNEDFIX    64
+#define IDS_WRITEPREVIEW 63
 
 // ---------------------------------------------------------------------------
 // Control IDs  (per-layer base = 1000 + N*100)
@@ -163,6 +164,7 @@
 #define IDC_SPIN_PREVIEWCH    1603
 #define IDC_COMBO_PREVMODE    1604
 #define IDC_CHK_SIGNEDFIX     1606
+#define IDC_CHK_WRITEPREVIEW  1607
 
 // ===========================================================================
 // EZ BoxTri AO  —  second modifier class (own dialog + IDs)
