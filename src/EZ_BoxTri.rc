@@ -308,3 +308,37 @@ BEGIN
     CONTROL  "Overcrank", IDC_MK_CHK_OVERCRANK, "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,101,50,10
     CONTROL  "Preview ch0", IDC_MK_CHK_PREVIEW, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,         60,101,44,10
 END
+
+// ===========================================================================
+//  EZ Smoothing Groups  (fourth modifier)
+// ===========================================================================
+
+STRINGTABLE
+BEGIN
+    IDS_SM_PARAMS    "Parameters"
+    IDS_SM_ANGLE     "AngleThreshold"
+    IDS_SM_CURVWT    "CurvatureWeight"
+    IDS_SM_MINISLAND "MinIsland"
+    IDS_SM_RESPECT   "RespectHardEdges"
+    IDS_SM_SELONLY   "SelectionOnly"
+    IDS_SM_CLEARNORM "ClearExplicitNormals"
+END
+
+IDD_PANEL_SMOOTH DIALOG 0, 0, 108, 96
+STYLE DS_SETFONT | WS_CHILD | WS_VISIBLE
+FONT 8, "MS Sans Serif"
+BEGIN
+    GROUPBOX "Smoothing Groups", IDC_STATIC, 2, 2, 104, 90
+    LTEXT    "Angle:",  IDC_STATIC,                                                  6,16,40,10
+    CONTROL  "", IDC_SM_EDIT_ANGLE,    "CustEdit",      WS_TABSTOP,                 70,15,22,12
+    CONTROL  "", IDC_SM_SPIN_ANGLE,    "SpinnerControl",WS_TABSTOP,                 92,15, 7,12
+    LTEXT    "Curv Wt:",IDC_STATIC,                                                  6,30,40,10
+    CONTROL  "", IDC_SM_EDIT_CURVWT,   "CustEdit",      WS_TABSTOP,                 70,29,22,12
+    CONTROL  "", IDC_SM_SPIN_CURVWT,   "SpinnerControl",WS_TABSTOP,                 92,29, 7,12
+    LTEXT    "Min Island:",IDC_STATIC,                                              6,44,46,10
+    CONTROL  "", IDC_SM_EDIT_MINISLAND,"CustEdit",      WS_TABSTOP,                 70,43,22,12
+    CONTROL  "", IDC_SM_SPIN_MINISLAND,"SpinnerControl",WS_TABSTOP,                 92,43, 7,12
+    CONTROL  "Respect Existing Hard Edges", IDC_SM_CHK_RESPECT, "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,59,98,10
+    CONTROL  "Selection Only",            IDC_SM_CHK_SELONLY, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,          6,71,98,10
+    CONTROL  "Clear Explicit Normals",    IDC_SM_CHK_CLEARNORM,"Button",BS_AUTOCHECKBOX|WS_TABSTOP,         6,83,98,10
+END

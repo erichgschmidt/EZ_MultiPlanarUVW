@@ -252,3 +252,28 @@
 #define IDC_MK_SPIN_RAYSAMP   2141
 #define IDC_MK_EDIT_RAYDIST   2142
 #define IDC_MK_SPIN_RAYDIST   2143
+
+// ===========================================================================
+// EZ Smoothing Groups  —  fourth modifier class (own dialog + IDs)
+// ===========================================================================
+#define IDD_PANEL_SMOOTH 104
+
+// Smoothing string IDs (140+)
+#define IDS_SM_PARAMS    140
+#define IDS_SM_ANGLE     141
+#define IDS_SM_CURVWT    142
+#define IDS_SM_MINISLAND 143
+#define IDS_SM_RESPECT   144
+#define IDS_SM_SELONLY   145
+#define IDS_SM_CLEARNORM 146
+
+// Smoothing control IDs (2200+)
+#define IDC_SM_EDIT_ANGLE     2200
+#define IDC_SM_SPIN_ANGLE     2201
+#define IDC_SM_EDIT_CURVWT    2202
+#define IDC_SM_SPIN_CURVWT    2203
+#define IDC_SM_EDIT_MINISLAND 2204
+#define IDC_SM_SPIN_MINISLAND 2205
+#define IDC_SM_CHK_RESPECT    2206
+#define IDC_SM_CHK_SELONLY    2207
+#define IDC_SM_CHK_CLEARNORM  2208
