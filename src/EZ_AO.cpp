@@ -87,6 +87,32 @@ enum AOParamIDs
 };
 
 // ---------------------------------------------------------------------------
+// Reset every param in a block to its descriptor default. Called from the
+// modifier constructor so a freshly-applied modifier always starts at defaults
+// (clones and scene loads overwrite these afterwards, so they keep their values).
+// Handles the int/bool/float param types these modifiers use.
+// ---------------------------------------------------------------------------
+static void ResetPB2ToDefaults(IParamBlock2* pb)
+{
+    if (!pb) return;
+    ParamBlockDesc2* d = pb->GetDesc();
+    if (!d) return;
+    const int n = d->Count();
+    for (int i = 0; i < n; ++i)
+    {
+        const ParamID id = d->IndextoID(i);
+        const ParamDef& pd = d->GetParamDef(id);
+        switch (pd.type)
+        {
+        case TYPE_INT:
+        case TYPE_BOOL:  pb->SetValue(id, 0, pd.def.i); break;
+        case TYPE_FLOAT: pb->SetValue(id, 0, pd.def.f); break;
+        default: break;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // ClassDesc2
 // ---------------------------------------------------------------------------
 
@@ -116,7 +142,7 @@ class EZBoxTriAO : public Modifier
 public:
     IParamBlock2* pblock = nullptr;
 
-    EZBoxTriAO()  { g_EZBoxTriAODesc.MakeAutoParamBlocks(this); }
+    EZBoxTriAO()  { g_EZBoxTriAODesc.MakeAutoParamBlocks(this); ResetPB2ToDefaults(pblock); }
     ~EZBoxTriAO() override = default;
 
     // ---- Animatable --------------------------------------------------------

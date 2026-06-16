@@ -137,6 +137,32 @@ static EZBoxTriClassDesc g_EZBoxTriDesc;
 ClassDesc2* GetEZBoxTriDesc() { return &g_EZBoxTriDesc; }
 
 // ---------------------------------------------------------------------------
+// Reset every param in a block to its descriptor default. Called from the
+// modifier constructor so a freshly-applied modifier always starts at defaults
+// (clones and scene loads overwrite these afterwards, so they keep their values).
+// Handles the int/bool/float param types this modifier uses.
+// ---------------------------------------------------------------------------
+static void ResetPB2ToDefaults(IParamBlock2* pb)
+{
+    if (!pb) return;
+    ParamBlockDesc2* d = pb->GetDesc();
+    if (!d) return;
+    const int n = d->Count();
+    for (int i = 0; i < n; ++i)
+    {
+        const ParamID id = d->IndextoID(i);
+        const ParamDef& pd = d->GetParamDef(id);
+        switch (pd.type)
+        {
+        case TYPE_INT:
+        case TYPE_BOOL:  pb->SetValue(id, 0, pd.def.i); break;
+        case TYPE_FLOAT: pb->SetValue(id, 0, pd.def.f); break;
+        default: break;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // DlgProc — populates the 4 Type comboboxes + Preview Mode combobox and
 //           handles selection changes back to the param block.
 // ---------------------------------------------------------------------------
@@ -261,7 +287,7 @@ class EZBoxTri : public Modifier
 public:
     IParamBlock2* pblock = nullptr;
 
-    EZBoxTri()  { g_EZBoxTriDesc.MakeAutoParamBlocks(this); }
+    EZBoxTri()  { g_EZBoxTriDesc.MakeAutoParamBlocks(this); ResetPB2ToDefaults(pblock); }
     ~EZBoxTri() override = default;
 
     // ---- Animatable --------------------------------------------------------
