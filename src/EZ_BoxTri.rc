@@ -223,11 +223,11 @@ BEGIN
     IDS_AO_ROUGHNESS "Roughness"
 END
 
-IDD_PANEL_AO DIALOG 0, 0, 108, 126
+IDD_PANEL_AO DIALOG 0, 0, 108, 140
 STYLE DS_SETFONT | WS_CHILD | WS_VISIBLE
 FONT 8, "MS Sans Serif"
 BEGIN
-    GROUPBOX "AO (signed weights add/subtract)", IDC_STATIC, 2, 2, 104, 120
+    GROUPBOX "AO (signed weights add/subtract)", IDC_STATIC, 2, 2, 104, 134
     LTEXT    "Ch:", IDC_STATIC,                                                       6,16,12,10
     CONTROL  "",  IDC_AO_EDIT_CH,      "CustEdit",       WS_TABSTOP,                  20,15,16,12
     CONTROL  "",  IDC_AO_SPIN_CH,      "SpinnerControl", WS_TABSTOP,                  36,15, 7,12
@@ -261,8 +261,11 @@ BEGIN
     CONTROL  "",  IDC_AO_EDIT_STRENGTH,"CustEdit",       WS_TABSTOP,                  83,73,16,12
     CONTROL  "",  IDC_AO_SPIN_STRENGTH,"SpinnerControl", WS_TABSTOP,                  99,73, 7,12
 
-    CONTROL  "Invert (1=occluded)", IDC_AO_CHK_INVERT,  "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,90,98,10
-    CONTROL  "Preview to ch0 (vtx colour)", IDC_AO_CHK_PREVIEW, "Button",BS_AUTOCHECKBOX|WS_TABSTOP, 6,104,98,10
+    LTEXT    "Combine:", IDC_STATIC,                                                  6,89,36,10
+    COMBOBOX        IDC_AO_COMBO_COMBINE,                                            44,88,58,80, CBS_DROPDOWNLIST|WS_TABSTOP
+
+    CONTROL  "Invert (1=occluded)", IDC_AO_CHK_INVERT,  "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,104,98,10
+    CONTROL  "Preview to ch0 (vtx colour)", IDC_AO_CHK_PREVIEW, "Button",BS_AUTOCHECKBOX|WS_TABSTOP, 6,118,98,10
 END
 
 // ===========================================================================

@@ -87,7 +87,23 @@ enum AOParamIDs
     pb_ao_convex,
     pb_ao_curvMag,
     pb_ao_upFacing,
-    pb_ao_roughness
+    pb_ao_roughness,
+    pb_ao_combine
+};
+
+// How this modifier's AO combines with whatever is already in the channel.
+enum AOCombine
+{
+    Comb_Replace = 0,   // overwrite (default)
+    Comb_Multiply,      // existing * new  (layer / accumulate occlusion)
+    Comb_Min,           // darkest wins
+    Comb_Max,           // lightest wins
+    Comb_Add,           // existing + new
+    Comb_Subtract,      // existing - new  (carve out)
+    Comb_Count
+};
+static const TCHAR* kAOCombineLabels[Comb_Count] = {
+    _T("Replace"), _T("Multiply"), _T("Min"), _T("Max"), _T("Add"), _T("Subtract")
 };
 
 // ---------------------------------------------------------------------------
@@ -255,6 +271,61 @@ private:
         if (!mesh.mapSupport(ch)) mesh.setMapSupport(ch, TRUE);
     }
 
+    // Snapshot the existing per-vertex AO scalar (the red/.x component) from a
+    // channel, sampling through its map-face table so it works for welded or
+    // face-corner data. out[v] = -1 where there is no existing data.
+    static void ReadExistingScalar(Mesh& mesh, int ch, std::vector<float>& out)
+    {
+        const int nv = mesh.numVerts;
+        out.assign(nv, -1.0f);
+        std::vector<float> acc(nv, 0.0f);
+        std::vector<int>   cnt(nv, 0);
+
+        if (ch == 0)
+        {
+            if (mesh.numCVerts <= 0 || !mesh.vertCol || !mesh.vcFace) return;
+            for (int f = 0; f < mesh.numFaces; ++f)
+                for (int c = 0; c < 3; ++c)
+                {
+                    const DWORD v = mesh.faces[f].v[c];
+                    const int idx = mesh.vcFace[f].t[c];
+                    if (v < (DWORD)nv && idx >= 0 && idx < mesh.numCVerts)
+                    { acc[v] += mesh.vertCol[idx].x; cnt[v] += 1; }
+                }
+        }
+        else
+        {
+            if (ch < 1 || ch >= mesh.getNumMaps() || !mesh.mapSupport(ch)) return;
+            MeshMap& m = mesh.Map(ch);
+            if (!m.tf || !m.tv || m.fnum < mesh.numFaces) return;
+            for (int f = 0; f < mesh.numFaces; ++f)
+                for (int c = 0; c < 3; ++c)
+                {
+                    const DWORD v = mesh.faces[f].v[c];
+                    const int idx = m.tf[f].t[c];
+                    if (v < (DWORD)nv && idx >= 0 && idx < m.vnum)
+                    { acc[v] += m.tv[idx].x; cnt[v] += 1; }
+                }
+        }
+        for (int v = 0; v < nv; ++v)
+            if (cnt[v] > 0) out[v] = acc[v] / (float)cnt[v];
+    }
+
+    // Combine this modifier's AO value with the existing channel value.
+    static float CombineAO(int mode, float existing, float val)
+    {
+        if (existing < 0.0f) return val;   // no existing data here
+        switch (mode)
+        {
+        case Comb_Multiply: return existing * val;
+        case Comb_Min:      return std::min(existing, val);
+        case Comb_Max:      return std::max(existing, val);
+        case Comb_Add:      return std::clamp(existing + val, 0.0f, 1.0f);
+        case Comb_Subtract: return std::clamp(existing - val, 0.0f, 1.0f);
+        default:            return val;    // Replace
+        }
+    }
+
     void Apply(TimeValue t, Mesh& mesh) const
     {
         AOLog("Apply: enter");
@@ -272,8 +343,15 @@ private:
         const bool  gray     = PBb(pb_ao_gray,    t, FALSE) != FALSE;
         const bool  preview  = PBb(pb_ao_preview, t, FALSE) != FALSE;
         const bool  invert   = PBb(pb_ao_invert,  t, FALSE) != FALSE;
+        const int   combine  = std::clamp(PBi(pb_ao_combine, t, Comb_Replace), 0, Comb_Count - 1);
 
         const int nv = mesh.numVerts;
+
+        // If combining with the existing channel, snapshot its per-vertex value
+        // (the red/AO component) BEFORE we rebuild the channel below.
+        std::vector<float> existing;
+        if (combine != Comb_Replace)
+            ReadExistingScalar(mesh, ch, existing);
 
         // Bounds (Z range for height term)
         Box3 b; b.Init();
@@ -373,7 +451,11 @@ private:
             occ = std::clamp(occ * strength, 0.0f, 1.0f);
             // Default: 1 = lit/open, 0 = occluded. Invert to store occlusion
             // amount instead (1 = occluded), to match shaders that expect that.
-            const float ao = invert ? occ : (1.0f - occ);
+            float ao = invert ? occ : (1.0f - occ);
+
+            // Combine with the channel's existing AO (Replace/Mul/Min/Max/Add/Sub).
+            if (combine != Comb_Replace && v < (int)existing.size())
+                ao = CombineAO(combine, existing[v], ao);
 
             aoVal[v] = ao;
             map.tv[v] = gray ? Point3(ao, ao, ao) : Point3(ao, 0.0f, 0.0f);
@@ -415,6 +497,48 @@ private:
 void* EZBoxTriAOClassDesc::Create(BOOL) { return new EZBoxTriAO(); }
 
 // ---------------------------------------------------------------------------
+// DlgProc — populates the Combine-mode combobox and syncs it to the pblock.
+// (Only purpose: the combobox; the modifier does NOT touch node display.)
+// ---------------------------------------------------------------------------
+class EZAODlgProc : public ParamMap2UserDlgProc
+{
+public:
+    INT_PTR DlgProc(TimeValue t, IParamMap2* map, HWND hWnd,
+                    UINT msg, WPARAM wParam, LPARAM) override
+    {
+        switch (msg)
+        {
+        case WM_INITDIALOG:
+        {
+            HWND cb = GetDlgItem(hWnd, IDC_AO_COMBO_COMBINE);
+            if (cb && map && map->GetParamBlock())
+            {
+                SendMessage(cb, CB_RESETCONTENT, 0, 0);
+                for (int i = 0; i < Comb_Count; ++i)
+                    SendMessage(cb, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(kAOCombineLabels[i]));
+                int val = 0;
+                map->GetParamBlock()->GetValue((ParamID)pb_ao_combine, 0, val, FOREVER);
+                SendMessage(cb, CB_SETCURSEL, (WPARAM)std::clamp(val, 0, Comb_Count - 1), 0);
+            }
+            break;
+        }
+        case WM_COMMAND:
+            if (HIWORD(wParam) == CBN_SELCHANGE && LOWORD(wParam) == IDC_AO_COMBO_COMBINE)
+            {
+                int sel = (int)SendMessage(GetDlgItem(hWnd, IDC_AO_COMBO_COMBINE), CB_GETCURSEL, 0, 0);
+                if (sel >= 0 && map && map->GetParamBlock())
+                    map->GetParamBlock()->SetValue((ParamID)pb_ao_combine, t, sel);
+                return TRUE;
+            }
+            break;
+        }
+        return FALSE;
+    }
+    void DeleteThis() override {}
+};
+static EZAODlgProc g_AODlgProc;
+
+// ---------------------------------------------------------------------------
 // ParamBlockDesc2
 //
 // Note: the modifier deliberately does NOT touch the node's vertex-colour
@@ -428,7 +552,7 @@ static ParamBlockDesc2 g_AOPBlock
     kAOPBlock, _T("params"), IDS_AO_PARAMS, &g_EZBoxTriAODesc,
     P_AUTO_CONSTRUCT | P_AUTO_UI,
     0,
-    IDD_PANEL_AO, IDS_AO_PARAMS, 0, 0, nullptr,
+    IDD_PANEL_AO, IDS_AO_PARAMS, 0, 0, &g_AODlgProc,
 
     pb_ao_ch, _T("aoChannel"), TYPE_INT, P_ANIMATABLE, IDS_AO_CH,
         p_default, 11, p_range, 1, 99,
@@ -474,6 +598,9 @@ static ParamBlockDesc2 g_AOPBlock
     p_end,
     pb_ao_invert, _T("invert"), TYPE_BOOL, P_ANIMATABLE, IDS_AO_INVERT,
         p_default, FALSE, p_ui, TYPE_SINGLECHEKBOX, IDC_AO_CHK_INVERT,
+    p_end,
+    pb_ao_combine, _T("combine"), TYPE_INT, P_ANIMATABLE, IDS_AO_COMBINE,
+        p_default, Comb_Replace, p_range, 0, Comb_Count - 1,
     p_end,
 
     p_end

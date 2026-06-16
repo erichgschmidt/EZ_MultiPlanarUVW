@@ -185,6 +185,7 @@
 #define IDS_AO_CURVMAG   110
 #define IDS_AO_UPFACING  111
 #define IDS_AO_ROUGHNESS 112
+#define IDS_AO_COMBINE   113
 
 // AO control IDs (2000+)
 #define IDC_AO_EDIT_CH        2000
@@ -208,6 +209,7 @@
 #define IDC_AO_SPIN_UPFACING  2018
 #define IDC_AO_EDIT_ROUGHNESS 2019
 #define IDC_AO_SPIN_ROUGHNESS 2020
+#define IDC_AO_COMBO_COMBINE  2021
 
 // ===========================================================================
 // EZ Procedural Masks  —  third modifier class (own dialog + IDs)
