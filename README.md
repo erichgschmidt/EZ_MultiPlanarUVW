@@ -77,6 +77,13 @@ across the seam.
 
 ---
 
+## Install (prebuilt)
+
+A compiled build is checked in at [`bin/EZ_BoxTri.dlm`](bin/EZ_BoxTri.dlm).
+Copy it into your 3ds Max 2023 plugins folder (or a custom plugin path) and
+restart Max. It registers three modifiers under the **EZ Tools** category:
+**EZ BoxTri**, **EZ BoxTri AO**, and **EZ Procedural Masks**.
+
 ## Build
 
 Requires the 3ds Max 2023 SDK and VS 2019 (v142 toolset).
