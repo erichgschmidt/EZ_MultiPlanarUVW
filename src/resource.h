@@ -219,6 +219,8 @@
 #define IDS_MK_SRCB      133
 #define IDS_MK_WB        134
 #define IDS_MK_INVB      135
+#define IDS_MK_RAYSAMP   136
+#define IDS_MK_RAYDIST   137
 
 // Masks control IDs (2100+)
 #define IDC_MK_EDIT_TARGETCH  2100
@@ -245,3 +247,8 @@
 #define IDC_MK_EDIT_WB        2131
 #define IDC_MK_SPIN_WB        2132
 #define IDC_MK_CHK_INVB       2133
+// Ray AO
+#define IDC_MK_EDIT_RAYSAMP   2140
+#define IDC_MK_SPIN_RAYSAMP   2141
+#define IDC_MK_EDIT_RAYDIST   2142
+#define IDC_MK_SPIN_RAYDIST   2143

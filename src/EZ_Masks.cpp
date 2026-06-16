@@ -59,12 +59,14 @@ enum Signal
     Sig_DownFacing,  // 5
     Sig_Height,      // 6
     Sig_Roughness,   // 7
-    Sig_Count        // 8
+    Sig_RayAO,       // 8  (ray-traced occlusion; needs BVH)
+    Sig_Count        // 9
 };
 
 static const TCHAR* kSignalLabels[Sig_Count] = {
     _T("None"), _T("Cavity"), _T("Convex"), _T("Curv Mag"),
-    _T("Up-Facing"), _T("Down-Facing"), _T("Height"), _T("Roughness")
+    _T("Up-Facing"), _T("Down-Facing"), _T("Height"), _T("Roughness"),
+    _T("Ray AO")
 };
 
 // ---------------------------------------------------------------------------
@@ -82,7 +84,8 @@ enum MkParamIDs
     mk_preview,
     mk_srcR, mk_wR, mk_invR,
     mk_srcG, mk_wG, mk_invG,
-    mk_srcB, mk_wB, mk_invB
+    mk_srcB, mk_wB, mk_invB,
+    mk_raySamples, mk_rayDist
 };
 
 // ---------------------------------------------------------------------------
@@ -184,6 +187,125 @@ public:
     void DeleteThis() override {}
 };
 static EZMasksDlgProc g_MkDlgProc;
+
+// ---------------------------------------------------------------------------
+// Minimal BVH for ray-occlusion (ray-traced AO). Median centroid split,
+// cached triangle edges, any-hit traversal with an explicit stack.
+// ---------------------------------------------------------------------------
+struct MkBVH
+{
+    struct Node { Box3 box; int left = -1, right = -1, start = 0, count = 0; };
+    std::vector<Node>   nodes;
+    std::vector<int>    tri;             // permuted triangle indices
+    std::vector<Point3> v0, e1, e2;      // per-triangle (orig index): vert0 + edges
+
+    void build(const Mesh& m)
+    {
+        const int nf = m.numFaces;
+        v0.resize(nf); e1.resize(nf); e2.resize(nf);
+        tri.resize(nf);
+        std::vector<Point3> cent(nf);
+        std::vector<Box3>   tbox(nf);
+        for (int f = 0; f < nf; ++f)
+        {
+            const Face& fc = m.faces[f];
+            const Point3 a = m.verts[fc.v[0]];
+            const Point3 b = m.verts[fc.v[1]];
+            const Point3 c = m.verts[fc.v[2]];
+            v0[f] = a; e1[f] = b - a; e2[f] = c - a;
+            Box3 bb; bb.Init(); bb += a; bb += b; bb += c;
+            tbox[f] = bb; cent[f] = (a + b + c) / 3.0f; tri[f] = f;
+        }
+        nodes.clear();
+        nodes.reserve((size_t)nf * 2 + 1);
+        if (nf > 0) buildRange(0, nf, cent, tbox);
+    }
+
+    int buildRange(int start, int count, std::vector<Point3>& cent, std::vector<Box3>& tbox)
+    {
+        Node nd; nd.start = start; nd.count = count; nd.box.Init();
+        for (int i = 0; i < count; ++i) nd.box += tbox[tri[start + i]];
+        const int self = (int)nodes.size();
+        nodes.push_back(nd);
+        if (count <= 4) return self;                         // leaf (count > 0)
+
+        const Point3 ext = nodes[self].box.Width();
+        const int axis = (ext.x >= ext.y && ext.x >= ext.z) ? 0 : (ext.y >= ext.z ? 1 : 2);
+        const int mid = start + count / 2;
+        std::nth_element(tri.begin() + start, tri.begin() + mid, tri.begin() + start + count,
+            [&](int a, int b) { return cent[a][axis] < cent[b][axis]; });
+        const int l = buildRange(start, mid - start, cent, tbox);
+        const int r = buildRange(mid, start + count - mid, cent, tbox);
+        nodes[self].left = l; nodes[self].right = r; nodes[self].count = 0;  // internal
+        return self;
+    }
+
+    static bool rayBox(const Point3& o, const Point3& invD, const Box3& bb, float tMax)
+    {
+        float t0 = 0.0f, t1 = tMax;
+        for (int a = 0; a < 3; ++a)
+        {
+            float n = (bb.pmin[a] - o[a]) * invD[a];
+            float f = (bb.pmax[a] - o[a]) * invD[a];
+            if (n > f) std::swap(n, f);
+            if (n > t0) t0 = n;
+            if (f < t1) t1 = f;
+            if (t0 > t1) return false;
+        }
+        return true;
+    }
+
+    bool triHit(int f, const Point3& o, const Point3& d, float tMin, float tMax) const
+    {
+        const Point3 p = d ^ e2[f];
+        const float det = DotProd(e1[f], p);
+        if (std::fabs(det) < 1e-9f) return false;
+        const float inv = 1.0f / det;
+        const Point3 tv = o - v0[f];
+        const float u = DotProd(tv, p) * inv;
+        if (u < 0.0f || u > 1.0f) return false;
+        const Point3 q = tv ^ e1[f];
+        const float vv = DotProd(d, q) * inv;
+        if (vv < 0.0f || u + vv > 1.0f) return false;
+        const float tt = DotProd(e2[f], q) * inv;
+        return tt > tMin && tt < tMax;
+    }
+
+    bool occluded(const Point3& o, const Point3& d, float tMin, float tMax) const
+    {
+        if (nodes.empty()) return false;
+        const Point3 invD(1.0f / (std::fabs(d.x) < 1e-9f ? 1e-9f : d.x),
+                          1.0f / (std::fabs(d.y) < 1e-9f ? 1e-9f : d.y),
+                          1.0f / (std::fabs(d.z) < 1e-9f ? 1e-9f : d.z));
+        int stack[64]; int sp = 0; stack[sp++] = 0;
+        while (sp > 0)
+        {
+            const Node& nd = nodes[stack[--sp]];
+            if (!rayBox(o, invD, nd.box, tMax)) continue;
+            if (nd.count > 0)
+            {
+                for (int i = 0; i < nd.count; ++i)
+                    if (triHit(tri[nd.start + i], o, d, tMin, tMax)) return true;
+            }
+            else if (nd.left >= 0 && sp < 62)
+            {
+                stack[sp++] = nd.left; stack[sp++] = nd.right;
+            }
+        }
+        return false;
+    }
+};
+
+// van der Corput / radical inverse base 2 (stable low-discrepancy sampling)
+static float MkRadicalInverse2(unsigned i)
+{
+    i = (i << 16) | (i >> 16);
+    i = ((i & 0x55555555u) << 1) | ((i & 0xAAAAAAAAu) >> 1);
+    i = ((i & 0x33333333u) << 2) | ((i & 0xCCCCCCCCu) >> 2);
+    i = ((i & 0x0F0F0F0Fu) << 4) | ((i & 0xF0F0F0F0u) >> 4);
+    i = ((i & 0x00FF00FFu) << 8) | ((i & 0xFF00FF00u) >> 8);
+    return (float)i * 2.3283064365386963e-10f;  // / 2^32
+}
 
 // ---------------------------------------------------------------------------
 // Modifier
@@ -293,6 +415,55 @@ private:
         if (!mesh.mapSupport(ch)) mesh.setMapSupport(ch, TRUE);
     }
 
+    // Ray-traced ambient occlusion, per vertex (1 = open, 0 = occluded).
+    // Cosine-weighted hemisphere around the vertex normal; deterministic
+    // low-discrepancy samples (no per-frame flicker). distFrac = max ray
+    // length as a fraction of the bbox diagonal.
+    static void ComputeRayAO(const Mesh& mesh, const std::vector<Point3>& vnUnit,
+                             int samples, float distFrac, std::vector<float>& out)
+    {
+        const int nv = mesh.numVerts;
+        out.assign(nv, 1.0f);
+        if (mesh.numFaces <= 0) return;
+
+        MkBVH bvh;
+        bvh.build(mesh);
+
+        Box3 bb; bb.Init();
+        for (int i = 0; i < nv; ++i) bb += mesh.verts[i];
+        const float diag = Length(bb.Max() - bb.Min());
+        const float eps  = std::max(1e-5f, diag * 1e-4f);
+        const float tMax = std::max(eps * 4.0f, diag * distFrac);
+        const float invS = 1.0f / (float)samples;
+
+        for (int v = 0; v < nv; ++v)
+        {
+            Point3 N = vnUnit[v];
+            const float nl = Length(N);
+            N = nl > 1e-6f ? N / nl : Point3(0, 0, 1);
+            const Point3 T = (std::fabs(N.z) < 0.999f)
+                                ? Normalize(N ^ Point3(0, 0, 1))
+                                : Normalize(N ^ Point3(1, 0, 0));
+            const Point3 Bx = N ^ T;
+            const Point3 o  = mesh.verts[v] + N * eps;
+
+            int occ = 0;
+            for (int s = 0; s < samples; ++s)
+            {
+                const float u1 = (s + 0.5f) * invS;
+                const float u2 = MkRadicalInverse2((unsigned)s);
+                const float r  = std::sqrt(u1);
+                const float th = 6.28318530718f * u2;
+                const float x  = r * std::cos(th);
+                const float y  = r * std::sin(th);
+                const float z  = std::sqrt(std::max(0.0f, 1.0f - u1));
+                const Point3 dir = T * x + Bx * y + N * z;
+                if (bvh.occluded(o, dir, eps, tMax)) ++occ;
+            }
+            out[v] = 1.0f - (float)occ * invS;
+        }
+    }
+
     void Apply(TimeValue t, Mesh& mesh) const
     {
         const int   ch        = ClampCh(PBi(mk_targetCh, t, 3));
@@ -309,6 +480,8 @@ private:
         };
         const float wCh[3]  = { PBf(mk_wR, t, 1.0f), PBf(mk_wG, t, 1.0f), PBf(mk_wB, t, 1.0f) };
         const bool  invCh[3]= { PBb(mk_invR, t, FALSE)!=FALSE, PBb(mk_invG, t, FALSE)!=FALSE, PBb(mk_invB, t, FALSE)!=FALSE };
+        const int   raySamples = std::clamp(PBi(mk_raySamples, t, 16), 1, 256);
+        const float rayDistFrac= std::clamp(PBf(mk_rayDist, t, 0.5f), 0.01f, 1.0f);
 
         const int nv = mesh.numVerts;
 
@@ -342,6 +515,13 @@ private:
             }
         }
 
+        // Ray-traced AO (only built if a channel asks for it — it's the
+        // expensive one: builds a BVH and casts raySamples rays per vertex).
+        std::vector<float> rayAO;
+        const bool needRay = (srcCh[0] == Sig_RayAO || srcCh[1] == Sig_RayAO || srcCh[2] == Sig_RayAO);
+        if (needRay)
+            ComputeRayAO(mesh, vnUnit, raySamples, rayDistFrac, rayAO);
+
         // Per-signal value per vertex
         auto signalAt = [&](int v, int sig) -> float
         {
@@ -371,6 +551,8 @@ private:
                 const float coherence = Length(vnUnit[v]) / (float)vnCnt[v]; // 1=flat
                 return Clamp01(1.0f - coherence);
             }
+            case Sig_RayAO:
+                return (v < (int)rayAO.size()) ? rayAO[v] : 1.0f;
             default: return 0.0f;
             }
         };
@@ -533,6 +715,15 @@ static ParamBlockDesc2 g_MkPBlock
     MK_CHANNEL_PARAMS(R, Sig_Cavity,    IDS_MK_SRCR, IDS_MK_WR, IDS_MK_INVR, IDC_MK_COMBO_SRCR, IDC_MK_EDIT_WR, IDC_MK_SPIN_WR, IDC_MK_CHK_INVR)
     MK_CHANNEL_PARAMS(G, Sig_Convex,    IDS_MK_SRCG, IDS_MK_WG, IDS_MK_INVG, IDC_MK_COMBO_SRCG, IDC_MK_EDIT_WG, IDC_MK_SPIN_WG, IDC_MK_CHK_INVG)
     MK_CHANNEL_PARAMS(B, Sig_Roughness, IDS_MK_SRCB, IDS_MK_WB, IDS_MK_INVB, IDC_MK_COMBO_SRCB, IDC_MK_EDIT_WB, IDC_MK_SPIN_WB, IDC_MK_CHK_INVB)
+
+    mk_raySamples, _T("raySamples"), TYPE_INT, P_ANIMATABLE, IDS_MK_RAYSAMP,
+        p_default, 16, p_range, 1, 256,
+        p_ui, TYPE_SPINNER, EDITTYPE_INT, IDC_MK_EDIT_RAYSAMP, IDC_MK_SPIN_RAYSAMP, SPIN_AUTOSCALE,
+    p_end,
+    mk_rayDist, _T("rayDist"), TYPE_FLOAT, P_ANIMATABLE, IDS_MK_RAYDIST,
+        p_default, 0.5f, p_range, 0.01f, 1.0f,
+        p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_MK_EDIT_RAYDIST, IDC_MK_SPIN_RAYDIST, SPIN_AUTOSCALE,
+    p_end,
 
     p_end
 );

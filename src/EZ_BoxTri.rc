@@ -260,13 +260,14 @@ BEGIN
     IDS_MK_SRCR  "SourceR"  IDS_MK_WR  "WeightR"  IDS_MK_INVR "InvertR"
     IDS_MK_SRCG  "SourceG"  IDS_MK_WG  "WeightG"  IDS_MK_INVG "InvertG"
     IDS_MK_SRCB  "SourceB"  IDS_MK_WB  "WeightB"  IDS_MK_INVB "InvertB"
+    IDS_MK_RAYSAMP "RaySamples"  IDS_MK_RAYDIST "RayDist"
 END
 
-IDD_PANEL_MASKS DIALOG 0, 0, 108, 104
+IDD_PANEL_MASKS DIALOG 0, 0, 108, 118
 STYLE DS_SETFONT | WS_CHILD | WS_VISIBLE
 FONT 8, "MS Sans Serif"
 BEGIN
-    GROUPBOX "Masks (per-vertex)", IDC_STATIC, 2, 2, 104, 98
+    GROUPBOX "Masks (per-vertex)", IDC_STATIC, 2, 2, 104, 112
     LTEXT    "Ch:",   IDC_STATIC,                                                  6,14,14,10
     CONTROL  "", IDC_MK_EDIT_TARGETCH,"CustEdit",      WS_TABSTOP,                 20,13,16,12
     CONTROL  "", IDC_MK_SPIN_TARGETCH,"SpinnerControl",WS_TABSTOP,                 36,13, 7,12
@@ -297,6 +298,13 @@ BEGIN
     CONTROL  "", IDC_MK_SPIN_BLUR, "SpinnerControl", WS_TABSTOP,                   42,72, 7,12
     CONTROL  "Invert All", IDC_MK_CHK_INVERTALL, "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 54,73,48,10
 
-    CONTROL  "Overcrank", IDC_MK_CHK_OVERCRANK, "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,87,50,10
-    CONTROL  "Preview ch0", IDC_MK_CHK_PREVIEW, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,         60,87,44,10
+    LTEXT    "Ray:", IDC_STATIC,                                                    6,87,18,10
+    CONTROL  "", IDC_MK_EDIT_RAYSAMP, "CustEdit",       WS_TABSTOP,                24,86,18,12
+    CONTROL  "", IDC_MK_SPIN_RAYSAMP, "SpinnerControl", WS_TABSTOP,                42,86, 7,12
+    LTEXT    "Dist:", IDC_STATIC,                                                  54,87,18,10
+    CONTROL  "", IDC_MK_EDIT_RAYDIST, "CustEdit",       WS_TABSTOP,                72,86,20,12
+    CONTROL  "", IDC_MK_SPIN_RAYDIST, "SpinnerControl", WS_TABSTOP,                92,86, 7,12
+
+    CONTROL  "Overcrank", IDC_MK_CHK_OVERCRANK, "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,101,50,10
+    CONTROL  "Preview ch0", IDC_MK_CHK_PREVIEW, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,         60,101,44,10
 END
