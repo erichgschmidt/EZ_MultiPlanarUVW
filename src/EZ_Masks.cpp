@@ -466,7 +466,7 @@ private:
 
     void Apply(TimeValue t, Mesh& mesh) const
     {
-        const int   ch        = ClampCh(PBi(mk_targetCh, t, 3));
+        const int   ch        = ClampCh(PBi(mk_targetCh, t, 12));
         const float contrast  = std::max(0.01f, PBf(mk_contrast, t, 1.0f));
         const int   blur      = std::clamp(PBi(mk_blur, t, 0), 0, 20);
         const bool  invertAll = PBb(mk_invertAll, t, FALSE) != FALSE;
@@ -691,7 +691,7 @@ static ParamBlockDesc2 g_MkPBlock
     IDD_PANEL_MASKS, IDS_MK_PARAMS, 0, 0, &g_MkDlgProc,
 
     mk_targetCh, _T("targetChannel"), TYPE_INT, P_ANIMATABLE, IDS_MK_TARGETCH,
-        p_default, 3, p_range, 0, 99,
+        p_default, 12, p_range, 0, 99,
         p_ui, TYPE_SPINNER, EDITTYPE_INT, IDC_MK_EDIT_TARGETCH, IDC_MK_SPIN_TARGETCH, SPIN_AUTOSCALE,
     p_end,
     mk_contrast, _T("contrast"), TYPE_FLOAT, P_ANIMATABLE, IDS_MK_CONTRAST,
