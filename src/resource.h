@@ -196,3 +196,52 @@
 #define IDC_AO_CHK_GRAY       2010
 #define IDC_AO_CHK_PREVIEW    2011
 #define IDC_AO_CHK_INVERT     2012
+
+// ===========================================================================
+// EZ Procedural Masks  —  third modifier class (own dialog + IDs)
+// ===========================================================================
+#define IDD_PANEL_MASKS  103
+
+// Masks string IDs (120+)
+#define IDS_MK_PARAMS    120
+#define IDS_MK_TARGETCH  121
+#define IDS_MK_CONTRAST  122
+#define IDS_MK_BLUR      123
+#define IDS_MK_INVERTALL 124
+#define IDS_MK_OVERCRANK 125
+#define IDS_MK_PREVIEW   126
+#define IDS_MK_SRCR      127
+#define IDS_MK_WR        128
+#define IDS_MK_INVR      129
+#define IDS_MK_SRCG      130
+#define IDS_MK_WG        131
+#define IDS_MK_INVG      132
+#define IDS_MK_SRCB      133
+#define IDS_MK_WB        134
+#define IDS_MK_INVB      135
+
+// Masks control IDs (2100+)
+#define IDC_MK_EDIT_TARGETCH  2100
+#define IDC_MK_SPIN_TARGETCH  2101
+#define IDC_MK_EDIT_CONTRAST  2102
+#define IDC_MK_SPIN_CONTRAST  2103
+#define IDC_MK_EDIT_BLUR      2104
+#define IDC_MK_SPIN_BLUR      2105
+#define IDC_MK_CHK_INVERTALL  2106
+#define IDC_MK_CHK_OVERCRANK  2107
+#define IDC_MK_CHK_PREVIEW    2108
+// R channel
+#define IDC_MK_COMBO_SRCR     2110
+#define IDC_MK_EDIT_WR        2111
+#define IDC_MK_SPIN_WR        2112
+#define IDC_MK_CHK_INVR       2113
+// G channel
+#define IDC_MK_COMBO_SRCG     2120
+#define IDC_MK_EDIT_WG        2121
+#define IDC_MK_SPIN_WG        2122
+#define IDC_MK_CHK_INVG       2123
+// B channel
+#define IDC_MK_COMBO_SRCB     2130
+#define IDC_MK_EDIT_WB        2131
+#define IDC_MK_SPIN_WB        2132
+#define IDC_MK_CHK_INVB       2133

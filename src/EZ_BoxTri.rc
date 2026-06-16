@@ -243,3 +243,60 @@ BEGIN
     CONTROL  "Invert (1=occluded)", IDC_AO_CHK_INVERT,  "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,62,98,10
     CONTROL  "Preview to ch0 (vtx colour)", IDC_AO_CHK_PREVIEW, "Button",BS_AUTOCHECKBOX|WS_TABSTOP, 6,76,98,10
 END
+
+// ===========================================================================
+//  EZ Procedural Masks  (third modifier)
+// ===========================================================================
+
+STRINGTABLE
+BEGIN
+    IDS_MK_PARAMS    "Parameters"
+    IDS_MK_TARGETCH  "TargetChannel"
+    IDS_MK_CONTRAST  "Contrast"
+    IDS_MK_BLUR      "Blur"
+    IDS_MK_INVERTALL "InvertAll"
+    IDS_MK_OVERCRANK "Overcrank"
+    IDS_MK_PREVIEW   "Preview"
+    IDS_MK_SRCR  "SourceR"  IDS_MK_WR  "WeightR"  IDS_MK_INVR "InvertR"
+    IDS_MK_SRCG  "SourceG"  IDS_MK_WG  "WeightG"  IDS_MK_INVG "InvertG"
+    IDS_MK_SRCB  "SourceB"  IDS_MK_WB  "WeightB"  IDS_MK_INVB "InvertB"
+END
+
+IDD_PANEL_MASKS DIALOG 0, 0, 108, 104
+STYLE DS_SETFONT | WS_CHILD | WS_VISIBLE
+FONT 8, "MS Sans Serif"
+BEGIN
+    GROUPBOX "Masks (per-vertex)", IDC_STATIC, 2, 2, 104, 98
+    LTEXT    "Ch:",   IDC_STATIC,                                                  6,14,14,10
+    CONTROL  "", IDC_MK_EDIT_TARGETCH,"CustEdit",      WS_TABSTOP,                 20,13,16,12
+    CONTROL  "", IDC_MK_SPIN_TARGETCH,"SpinnerControl",WS_TABSTOP,                 36,13, 7,12
+    LTEXT    "Contr:",IDC_STATIC,                                                 48,14,24,10
+    CONTROL  "", IDC_MK_EDIT_CONTRAST,"CustEdit",      WS_TABSTOP,                 72,13,20,12
+    CONTROL  "", IDC_MK_SPIN_CONTRAST,"SpinnerControl",WS_TABSTOP,                 92,13, 7,12
+
+    LTEXT    "R", IDC_STATIC,                                                       6,31, 8,10
+    COMBOBOX     IDC_MK_COMBO_SRCR,                                                14,29,40,80, CBS_DROPDOWNLIST|WS_TABSTOP
+    CONTROL  "", IDC_MK_EDIT_WR, "CustEdit",       WS_TABSTOP,                     56,30,18,12
+    CONTROL  "", IDC_MK_SPIN_WR, "SpinnerControl", WS_TABSTOP,                     74,30, 7,12
+    CONTROL  "Inv", IDC_MK_CHK_INVR, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,          84,31,22,10
+
+    LTEXT    "G", IDC_STATIC,                                                       6,45, 8,10
+    COMBOBOX     IDC_MK_COMBO_SRCG,                                                14,43,40,80, CBS_DROPDOWNLIST|WS_TABSTOP
+    CONTROL  "", IDC_MK_EDIT_WG, "CustEdit",       WS_TABSTOP,                     56,44,18,12
+    CONTROL  "", IDC_MK_SPIN_WG, "SpinnerControl", WS_TABSTOP,                     74,44, 7,12
+    CONTROL  "Inv", IDC_MK_CHK_INVG, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,          84,45,22,10
+
+    LTEXT    "B", IDC_STATIC,                                                       6,59, 8,10
+    COMBOBOX     IDC_MK_COMBO_SRCB,                                                14,57,40,80, CBS_DROPDOWNLIST|WS_TABSTOP
+    CONTROL  "", IDC_MK_EDIT_WB, "CustEdit",       WS_TABSTOP,                     56,58,18,12
+    CONTROL  "", IDC_MK_SPIN_WB, "SpinnerControl", WS_TABSTOP,                     74,58, 7,12
+    CONTROL  "Inv", IDC_MK_CHK_INVB, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,          84,59,22,10
+
+    LTEXT    "Blur:", IDC_STATIC,                                                   6,73,20,10
+    CONTROL  "", IDC_MK_EDIT_BLUR, "CustEdit",       WS_TABSTOP,                   26,72,16,12
+    CONTROL  "", IDC_MK_SPIN_BLUR, "SpinnerControl", WS_TABSTOP,                   42,72, 7,12
+    CONTROL  "Invert All", IDC_MK_CHK_INVERTALL, "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 54,73,48,10
+
+    CONTROL  "Overcrank", IDC_MK_CHK_OVERCRANK, "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,87,50,10
+    CONTROL  "Preview ch0", IDC_MK_CHK_PREVIEW, "Button",BS_AUTOCHECKBOX|WS_TABSTOP,         60,87,44,10
+END

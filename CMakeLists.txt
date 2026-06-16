@@ -14,6 +14,7 @@ set(MAXSDK_DIR "C:/Program Files/Autodesk/3ds Max 2023 SDK/maxsdk"
 add_library(EZ_BoxTri SHARED
     src/EZ_BoxTri.cpp
     src/EZ_AO.cpp
+    src/EZ_Masks.cpp
     src/EZ_BoxTri.rc
 )
 
