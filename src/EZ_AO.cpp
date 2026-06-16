@@ -83,7 +83,11 @@ enum AOParamIDs
     pb_ao_strength,
     pb_ao_gray,
     pb_ao_preview,
-    pb_ao_invert
+    pb_ao_invert,
+    pb_ao_convex,
+    pb_ao_curvMag,
+    pb_ao_upFacing,
+    pb_ao_roughness
 };
 
 // ---------------------------------------------------------------------------
@@ -255,9 +259,15 @@ private:
     {
         AOLog("Apply: enter");
         const int   ch       = ClampCh(PBi(pb_ao_ch,       t, 11));
-        const float wCav     = std::max(0.0f, PBf(pb_ao_cavity,   t, 1.0f));
-        const float wHgt     = std::max(0.0f, PBf(pb_ao_height,   t, 0.0f));
-        const float wDwn     = std::max(0.0f, PBf(pb_ao_down,     t, 0.0f));
+        // Contributor weights are BIPOLAR: positive adds occlusion (darkens),
+        // negative subtracts (carves AO back out, e.g. brighten edges).
+        const float wCav     = PBf(pb_ao_cavity,    t, 1.0f);
+        const float wHgt     = PBf(pb_ao_height,    t, 0.0f);
+        const float wDwn     = PBf(pb_ao_down,      t, 0.0f);
+        const float wConv    = PBf(pb_ao_convex,    t, 0.0f);
+        const float wCurv    = PBf(pb_ao_curvMag,   t, 0.0f);
+        const float wUp      = PBf(pb_ao_upFacing,  t, 0.0f);
+        const float wRough   = PBf(pb_ao_roughness, t, 0.0f);
         const float strength = std::max(0.0f, PBf(pb_ao_strength, t, 1.0f));
         const bool  gray     = PBb(pb_ao_gray,    t, FALSE) != FALSE;
         const bool  preview  = PBb(pb_ao_preview, t, FALSE) != FALSE;
@@ -281,8 +291,10 @@ private:
             return fc.v[0] < (DWORD)nv && fc.v[1] < (DWORD)nv && fc.v[2] < (DWORD)nv;
         };
 
-        // Smoothed vertex normals + neighbour-centroid accumulation (one pass)
+        // Smoothed vertex normals + neighbour-centroid accumulation (one pass).
+        // vnCnt = incident face count (for the roughness / normal-variance term).
         std::vector<Point3> vn(nv, Point3(0,0,0));
+        std::vector<int>    vnCnt(nv, 0);
         std::vector<Point3> nbrSum(nv, Point3(0,0,0));
         std::vector<int>    nbrCnt(nv, 0);
         for (int f = 0; f < mesh.numFaces; ++f)
@@ -295,7 +307,7 @@ private:
                 const int v = fc.v[c];
                 const int a = fc.v[(c + 1) % 3];
                 const int d = fc.v[(c + 2) % 3];
-                vn[v]    += fn;
+                vn[v]    += fn;  vnCnt[v] += 1;
                 nbrSum[v] += mesh.verts[a] + mesh.verts[d];
                 nbrCnt[v] += 2;
             }
@@ -336,21 +348,28 @@ private:
             const float nl = Length(n);
             n = nl > 1e-6f ? n / nl : Point3(0,0,1);
 
-            // cavity
-            float cav = 0.0f;
+            // signed curvature: + concave (cavity), - convex (edge)
+            float signedCurv = 0.0f;
             if (nbrCnt[v] > 0)
             {
                 const Point3 centroid = nbrSum[v] / (float)nbrCnt[v];
                 Point3 toC = centroid - mesh.verts[v];
                 const float tl = Length(toC);
-                if (tl > 1e-6f)
-                    cav = std::clamp(DotProd(toC / tl, n), 0.0f, 1.0f);
+                if (tl > 1e-6f) signedCurv = DotProd(toC / tl, n);
             }
+            const float cav     = std::clamp(signedCurv, 0.0f, 1.0f);
+            const float convex  = std::clamp(-signedCurv, 0.0f, 1.0f);
+            const float curvMag = std::clamp(std::fabs(signedCurv), 0.0f, 1.0f);
 
             const float hgt = std::clamp(1.0f - (mesh.verts[v].z - mn.z) / zRange, 0.0f, 1.0f);
             const float dwn = std::clamp(-n.z, 0.0f, 1.0f);
+            const float up  = std::clamp( n.z, 0.0f, 1.0f);
+            const float rough = (vnCnt[v] > 0)
+                ? std::clamp(1.0f - Length(vn[v]) / (float)vnCnt[v], 0.0f, 1.0f) : 0.0f;
 
-            float occ = wCav * cav + wHgt * hgt + wDwn * dwn;
+            // Additive (bipolar) occlusion: each contributor can add or subtract.
+            float occ = wCav * cav + wHgt * hgt + wDwn * dwn
+                      + wConv * convex + wCurv * curvMag + wUp * up + wRough * rough;
             occ = std::clamp(occ * strength, 0.0f, 1.0f);
             // Default: 1 = lit/open, 0 = occluded. Invert to store occlusion
             // amount instead (1 = occluded), to match shaders that expect that.
@@ -416,16 +435,32 @@ static ParamBlockDesc2 g_AOPBlock
         p_ui, TYPE_SPINNER, EDITTYPE_INT, IDC_AO_EDIT_CH, IDC_AO_SPIN_CH, SPIN_AUTOSCALE,
     p_end,
     pb_ao_cavity, _T("cavity"), TYPE_FLOAT, P_ANIMATABLE, IDS_AO_CAVITY,
-        p_default, 1.0f, p_range, 0.0f, 1.0f,
+        p_default, 1.0f, p_range, -4.0f, 4.0f,
         p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_AO_EDIT_CAVITY, IDC_AO_SPIN_CAVITY, SPIN_AUTOSCALE,
     p_end,
     pb_ao_height, _T("height"), TYPE_FLOAT, P_ANIMATABLE, IDS_AO_HEIGHT,
-        p_default, 0.0f, p_range, 0.0f, 1.0f,
+        p_default, 0.0f, p_range, -4.0f, 4.0f,
         p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_AO_EDIT_HEIGHT, IDC_AO_SPIN_HEIGHT, SPIN_AUTOSCALE,
     p_end,
     pb_ao_down, _T("down"), TYPE_FLOAT, P_ANIMATABLE, IDS_AO_DOWN,
-        p_default, 0.0f, p_range, 0.0f, 1.0f,
+        p_default, 0.0f, p_range, -4.0f, 4.0f,
         p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_AO_EDIT_DOWN, IDC_AO_SPIN_DOWN, SPIN_AUTOSCALE,
+    p_end,
+    pb_ao_convex, _T("convex"), TYPE_FLOAT, P_ANIMATABLE, IDS_AO_CONVEX,
+        p_default, 0.0f, p_range, -4.0f, 4.0f,
+        p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_AO_EDIT_CONVEX, IDC_AO_SPIN_CONVEX, SPIN_AUTOSCALE,
+    p_end,
+    pb_ao_curvMag, _T("curvMag"), TYPE_FLOAT, P_ANIMATABLE, IDS_AO_CURVMAG,
+        p_default, 0.0f, p_range, -4.0f, 4.0f,
+        p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_AO_EDIT_CURVMAG, IDC_AO_SPIN_CURVMAG, SPIN_AUTOSCALE,
+    p_end,
+    pb_ao_upFacing, _T("upFacing"), TYPE_FLOAT, P_ANIMATABLE, IDS_AO_UPFACING,
+        p_default, 0.0f, p_range, -4.0f, 4.0f,
+        p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_AO_EDIT_UPFACING, IDC_AO_SPIN_UPFACING, SPIN_AUTOSCALE,
+    p_end,
+    pb_ao_roughness, _T("roughness"), TYPE_FLOAT, P_ANIMATABLE, IDS_AO_ROUGHNESS,
+        p_default, 0.0f, p_range, -4.0f, 4.0f,
+        p_ui, TYPE_SPINNER, EDITTYPE_FLOAT, IDC_AO_EDIT_ROUGHNESS, IDC_AO_SPIN_ROUGHNESS, SPIN_AUTOSCALE,
     p_end,
     pb_ao_strength, _T("strength"), TYPE_FLOAT, P_ANIMATABLE, IDS_AO_STRENGTH,
         p_default, 1.0f, p_range, 0.0f, 8.0f,

@@ -181,6 +181,10 @@
 #define IDS_AO_GRAY      106
 #define IDS_AO_PREVIEW   107
 #define IDS_AO_INVERT    108
+#define IDS_AO_CONVEX    109
+#define IDS_AO_CURVMAG   110
+#define IDS_AO_UPFACING  111
+#define IDS_AO_ROUGHNESS 112
 
 // AO control IDs (2000+)
 #define IDC_AO_EDIT_CH        2000
@@ -196,6 +200,14 @@
 #define IDC_AO_CHK_GRAY       2010
 #define IDC_AO_CHK_PREVIEW    2011
 #define IDC_AO_CHK_INVERT     2012
+#define IDC_AO_EDIT_CONVEX    2013
+#define IDC_AO_SPIN_CONVEX    2014
+#define IDC_AO_EDIT_CURVMAG   2015
+#define IDC_AO_SPIN_CURVMAG   2016
+#define IDC_AO_EDIT_UPFACING  2017
+#define IDC_AO_SPIN_UPFACING  2018
+#define IDC_AO_EDIT_ROUGHNESS 2019
+#define IDC_AO_SPIN_ROUGHNESS 2020
 
 // ===========================================================================
 // EZ Procedural Masks  —  third modifier class (own dialog + IDs)

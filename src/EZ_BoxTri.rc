@@ -217,31 +217,52 @@ BEGIN
     IDS_AO_GRAY      "Grayscale"
     IDS_AO_PREVIEW   "Preview"
     IDS_AO_INVERT    "Invert"
+    IDS_AO_CONVEX    "Convex"
+    IDS_AO_CURVMAG   "CurvMag"
+    IDS_AO_UPFACING  "UpFacing"
+    IDS_AO_ROUGHNESS "Roughness"
 END
 
-IDD_PANEL_AO DIALOG 0, 0, 108, 98
+IDD_PANEL_AO DIALOG 0, 0, 108, 126
 STYLE DS_SETFONT | WS_CHILD | WS_VISIBLE
 FONT 8, "MS Sans Serif"
 BEGIN
-    GROUPBOX "AO (pseudo, ch 11)", IDC_STATIC, 2, 2, 104, 92
+    GROUPBOX "AO (signed weights add/subtract)", IDC_STATIC, 2, 2, 104, 120
     LTEXT    "Ch:", IDC_STATIC,                                                       6,16,12,10
     CONTROL  "",  IDC_AO_EDIT_CH,      "CustEdit",       WS_TABSTOP,                  20,15,16,12
     CONTROL  "",  IDC_AO_SPIN_CH,      "SpinnerControl", WS_TABSTOP,                  36,15, 7,12
     CONTROL  "Grayscale", IDC_AO_CHK_GRAY, "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 50,16,52,10
+
     LTEXT    "Cavity:", IDC_STATIC,                                                    6,32,28,10
     CONTROL  "",  IDC_AO_EDIT_CAVITY,  "CustEdit",       WS_TABSTOP,                  34,31,22,12
     CONTROL  "",  IDC_AO_SPIN_CAVITY,  "SpinnerControl", WS_TABSTOP,                  56,31, 7,12
-    LTEXT    "Height:", IDC_STATIC,                                                   65,32,24,10
-    CONTROL  "",  IDC_AO_EDIT_HEIGHT,  "CustEdit",       WS_TABSTOP,                  83,31,16,12
-    CONTROL  "",  IDC_AO_SPIN_HEIGHT,  "SpinnerControl", WS_TABSTOP,                  99,31, 7,12
-    LTEXT    "Down:", IDC_STATIC,                                                      6,46,28,10
-    CONTROL  "",  IDC_AO_EDIT_DOWN,    "CustEdit",       WS_TABSTOP,                  34,45,22,12
-    CONTROL  "",  IDC_AO_SPIN_DOWN,    "SpinnerControl", WS_TABSTOP,                  56,45, 7,12
-    LTEXT    "Strength:", IDC_STATIC,                                                 65,46,24,10
-    CONTROL  "",  IDC_AO_EDIT_STRENGTH,"CustEdit",       WS_TABSTOP,                  83,45,16,12
-    CONTROL  "",  IDC_AO_SPIN_STRENGTH,"SpinnerControl", WS_TABSTOP,                  99,45, 7,12
-    CONTROL  "Invert (1=occluded)", IDC_AO_CHK_INVERT,  "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,62,98,10
-    CONTROL  "Preview to ch0 (vtx colour)", IDC_AO_CHK_PREVIEW, "Button",BS_AUTOCHECKBOX|WS_TABSTOP, 6,76,98,10
+    LTEXT    "Convex:", IDC_STATIC,                                                   65,32,24,10
+    CONTROL  "",  IDC_AO_EDIT_CONVEX,  "CustEdit",       WS_TABSTOP,                  83,31,16,12
+    CONTROL  "",  IDC_AO_SPIN_CONVEX,  "SpinnerControl", WS_TABSTOP,                  99,31, 7,12
+
+    LTEXT    "Curv:", IDC_STATIC,                                                      6,46,28,10
+    CONTROL  "",  IDC_AO_EDIT_CURVMAG, "CustEdit",       WS_TABSTOP,                  34,45,22,12
+    CONTROL  "",  IDC_AO_SPIN_CURVMAG, "SpinnerControl", WS_TABSTOP,                  56,45, 7,12
+    LTEXT    "Rough:", IDC_STATIC,                                                    65,46,24,10
+    CONTROL  "",  IDC_AO_EDIT_ROUGHNESS,"CustEdit",      WS_TABSTOP,                  83,45,16,12
+    CONTROL  "",  IDC_AO_SPIN_ROUGHNESS,"SpinnerControl",WS_TABSTOP,                  99,45, 7,12
+
+    LTEXT    "Down:", IDC_STATIC,                                                      6,60,28,10
+    CONTROL  "",  IDC_AO_EDIT_DOWN,    "CustEdit",       WS_TABSTOP,                  34,59,22,12
+    CONTROL  "",  IDC_AO_SPIN_DOWN,    "SpinnerControl", WS_TABSTOP,                  56,59, 7,12
+    LTEXT    "Up:", IDC_STATIC,                                                       65,60,24,10
+    CONTROL  "",  IDC_AO_EDIT_UPFACING,"CustEdit",       WS_TABSTOP,                  83,59,16,12
+    CONTROL  "",  IDC_AO_SPIN_UPFACING,"SpinnerControl", WS_TABSTOP,                  99,59, 7,12
+
+    LTEXT    "Height:", IDC_STATIC,                                                    6,74,28,10
+    CONTROL  "",  IDC_AO_EDIT_HEIGHT,  "CustEdit",       WS_TABSTOP,                  34,73,22,12
+    CONTROL  "",  IDC_AO_SPIN_HEIGHT,  "SpinnerControl", WS_TABSTOP,                  56,73, 7,12
+    LTEXT    "Stren:", IDC_STATIC,                                                    65,74,24,10
+    CONTROL  "",  IDC_AO_EDIT_STRENGTH,"CustEdit",       WS_TABSTOP,                  83,73,16,12
+    CONTROL  "",  IDC_AO_SPIN_STRENGTH,"SpinnerControl", WS_TABSTOP,                  99,73, 7,12
+
+    CONTROL  "Invert (1=occluded)", IDC_AO_CHK_INVERT,  "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,90,98,10
+    CONTROL  "Preview to ch0 (vtx colour)", IDC_AO_CHK_PREVIEW, "Button",BS_AUTOCHECKBOX|WS_TABSTOP, 6,104,98,10
 END
 
 // ===========================================================================
