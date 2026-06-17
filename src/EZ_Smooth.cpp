@@ -222,9 +222,10 @@ private:
 
         auto faceValid = [nv](const Face& fc){ return fc.v[0]<(DWORD)nv && fc.v[1]<(DWORD)nv && fc.v[2]<(DWORD)nv; };
 
-        // Face normals
+        // Face normals (guard malformed faces — FaceNormal derefs verts[])
         std::vector<Point3> Nf((size_t)nf);
-        for (int f = 0; f < nf; ++f) Nf[f] = FaceNormal(mesh, f);
+        for (int f = 0; f < nf; ++f)
+            Nf[f] = faceValid(mesh.faces[f]) ? FaceNormal(mesh, f) : Point3(0,0,1);
 
         // Per-vertex curvature magnitude (only if used)
         std::vector<float> curvMag;
@@ -267,7 +268,7 @@ private:
         }
 
         // Build interior edges. key = minV * 2^32 + maxV.
-        struct EdgeRec { int f0 = -1, f1 = -1; bool vis = true; };
+        struct EdgeRec { int f0 = -1, f1 = -1; bool vis = true; bool nonman = false; };
         std::unordered_map<int64_t, EdgeRec> edges;
         edges.reserve((size_t)nf * 2);
         for (int f = 0; f < nf; ++f)
@@ -281,8 +282,9 @@ private:
                 if (va > vb) std::swap(va, vb);
                 const int64_t key = (int64_t)va * 0x100000000LL + (int64_t)vb;
                 EdgeRec& r = edges[key];
-                if (r.f0 < 0) { r.f0 = f; r.vis = vis; }
-                else          { r.f1 = f; r.vis = r.vis && vis; }  // invisible if either side hidden
+                if      (r.f0 < 0) { r.f0 = f; r.vis = vis; }
+                else if (r.f1 < 0) { r.f1 = f; r.vis = r.vis && vis; }  // invisible if either side hidden
+                else               { r.nonman = true; }                 // 3+ faces share this edge
             }
         }
 
@@ -301,7 +303,11 @@ private:
             const int A = r.f0, B = r.f1;
 
             bool hard;
-            if (!r.vis)
+            if (r.nonman)
+            {
+                hard = true;                     // non-manifold seam: always crease
+            }
+            else if (!r.vis)
             {
                 hard = false;                    // quad diagonal: always soft
             }
@@ -393,7 +399,16 @@ private:
             for (int nb : adj[rg]) if (colorBit[nb] >= 0) used |= (1u << colorBit[nb]);
             int bit = 0;
             while (bit < 32 && (used & (1u << bit))) ++bit;
-            colorBit[rg] = (bit < 32) ? bit : 0;   // fallback: reuse bit 0
+            if (bit >= 32)
+            {
+                // >32 mutually-adjacent regions: reuse the bit shared by the
+                // fewest hard-neighbours so the least crease is lost.
+                int cnt[32] = { 0 };
+                for (int nb : adj[rg]) if (colorBit[nb] >= 0) ++cnt[colorBit[nb]];
+                bit = 0;
+                for (int b = 1; b < 32; ++b) if (cnt[b] < cnt[bit]) bit = b;
+            }
+            colorBit[rg] = bit;
         }
 
         // Write smGroup per face (gated by selection).

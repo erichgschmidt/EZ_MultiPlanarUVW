@@ -221,6 +221,7 @@ BEGIN
     IDS_AO_CURVMAG   "CurvMag"
     IDS_AO_UPFACING  "UpFacing"
     IDS_AO_ROUGHNESS "Roughness"
+    IDS_AO_COMBINE   "Combine"
 END
 
 IDD_PANEL_AO DIALOG 0, 0, 108, 140
@@ -382,13 +383,14 @@ BEGIN
     IDS_AL_GRAY      "Grayscale"
     IDS_AL_INVERT    "Invert"
     IDS_AL_PREVIEW   "Preview"
+    IDS_AL_COMBINE   "Combine"
 END
 
-IDD_PANEL_AOLITE DIALOG 0, 0, 108, 98
+IDD_PANEL_AOLITE DIALOG 0, 0, 108, 112
 STYLE DS_SETFONT | WS_CHILD | WS_VISIBLE
 FONT 8, "MS Sans Serif"
 BEGIN
-    GROUPBOX "EZ AO (cavity / height / down)", IDC_STATIC, 2, 2, 104, 92
+    GROUPBOX "EZ AO (cavity / height / down)", IDC_STATIC, 2, 2, 104, 106
     LTEXT    "Ch:", IDC_STATIC,                                                       6,16,12,10
     CONTROL  "",  IDC_AL_EDIT_CH,      "CustEdit",       WS_TABSTOP,                  20,15,16,12
     CONTROL  "",  IDC_AL_SPIN_CH,      "SpinnerControl", WS_TABSTOP,                  36,15, 7,12
@@ -405,6 +407,8 @@ BEGIN
     LTEXT    "Strength:", IDC_STATIC,                                                 65,46,24,10
     CONTROL  "",  IDC_AL_EDIT_STRENGTH,"CustEdit",       WS_TABSTOP,                  83,45,16,12
     CONTROL  "",  IDC_AL_SPIN_STRENGTH,"SpinnerControl", WS_TABSTOP,                  99,45, 7,12
-    CONTROL  "Invert (1=occluded)", IDC_AL_CHK_INVERT,  "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,62,98,10
-    CONTROL  "Preview to ch0 (vtx colour)", IDC_AL_CHK_PREVIEW, "Button",BS_AUTOCHECKBOX|WS_TABSTOP, 6,76,98,10
+    LTEXT    "Combine:", IDC_STATIC,                                                   6,61,36,10
+    COMBOBOX        IDC_AL_COMBO_COMBINE,                                            44,60,58,80, CBS_DROPDOWNLIST|WS_TABSTOP
+    CONTROL  "Invert (1=occluded)", IDC_AL_CHK_INVERT,  "Button",BS_AUTOCHECKBOX|WS_GROUP|WS_TABSTOP, 6,76,98,10
+    CONTROL  "Preview to ch0 (vtx colour)", IDC_AL_CHK_PREVIEW, "Button",BS_AUTOCHECKBOX|WS_TABSTOP, 6,90,98,10
 END

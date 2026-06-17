@@ -307,6 +307,7 @@
 #define IDS_AL_GRAY      166
 #define IDS_AL_INVERT    167
 #define IDS_AL_PREVIEW   168
+#define IDS_AL_COMBINE   169
 
 // controls (2300+)
 #define IDC_AL_EDIT_CH        2300
@@ -322,3 +323,4 @@
 #define IDC_AL_CHK_GRAY       2310
 #define IDC_AL_CHK_INVERT     2311
 #define IDC_AL_CHK_PREVIEW    2312
+#define IDC_AL_COMBO_COMBINE  2313

@@ -17,6 +17,7 @@
 
 #include <max.h>
 #include <iparamb2.h>
+#include <iparamm2.h>
 #include <modstack.h>
 #include <object.h>
 #include <mesh.h>
@@ -45,7 +46,24 @@ enum AlParamIDs
     al_strength,
     al_gray,
     al_invert,
-    al_preview
+    al_preview,
+    al_combine
+};
+
+// How this modifier's AO combines with whatever is already in the channel
+// (so you can stack/blend onto a prior AO instead of overwriting it).
+enum AlCombine
+{
+    AlComb_Replace = 0,   // overwrite (default)
+    AlComb_Multiply,      // existing * new  (layer / accumulate occlusion)
+    AlComb_Min,           // darkest wins
+    AlComb_Max,           // lightest wins
+    AlComb_Add,           // existing + new
+    AlComb_Subtract,      // existing - new  (carve out)
+    AlComb_Count
+};
+static const TCHAR* kAlCombineLabels[AlComb_Count] = {
+    _T("Replace"), _T("Multiply"), _T("Min"), _T("Max"), _T("Add"), _T("Subtract")
 };
 
 static void AlResetPB2ToDefaults(IParamBlock2* pb)
@@ -178,6 +196,60 @@ private:
         return L > 1e-6f ? n / L : Point3(0,0,1);
     }
 
+    // Snapshot the per-vertex .x already in a channel (averaged from face
+    // corners) BEFORE we rebuild it, so Combine modes can blend onto it.
+    // out[v] = -1 where the channel has no data here.
+    static void ReadExistingScalar(Mesh& mesh, int ch, std::vector<float>& out)
+    {
+        const int nv = mesh.numVerts;
+        out.assign(nv, -1.0f);
+        std::vector<float> acc(nv, 0.0f);
+        std::vector<int>   cnt(nv, 0);
+
+        if (ch == 0)
+        {
+            if (mesh.numCVerts <= 0 || !mesh.vertCol || !mesh.vcFace) return;
+            for (int f = 0; f < mesh.numFaces; ++f)
+                for (int c = 0; c < 3; ++c)
+                {
+                    const DWORD v = mesh.faces[f].v[c];
+                    const int idx = mesh.vcFace[f].t[c];
+                    if (v < (DWORD)nv && idx >= 0 && idx < mesh.numCVerts)
+                    { acc[v] += mesh.vertCol[idx].x; cnt[v] += 1; }
+                }
+        }
+        else
+        {
+            if (ch < 1 || ch >= mesh.getNumMaps() || !mesh.mapSupport(ch)) return;
+            MeshMap& m = mesh.Map(ch);
+            if (!m.tf || !m.tv || m.fnum < mesh.numFaces) return;
+            for (int f = 0; f < mesh.numFaces; ++f)
+                for (int c = 0; c < 3; ++c)
+                {
+                    const DWORD v = mesh.faces[f].v[c];
+                    const int idx = m.tf[f].t[c];
+                    if (v < (DWORD)nv && idx >= 0 && idx < m.vnum)
+                    { acc[v] += m.tv[idx].x; cnt[v] += 1; }
+                }
+        }
+        for (int v = 0; v < nv; ++v)
+            if (cnt[v] > 0) out[v] = acc[v] / (float)cnt[v];
+    }
+
+    static float CombineAO(int mode, float existing, float val)
+    {
+        if (existing < 0.0f) return val;   // no existing data here
+        switch (mode)
+        {
+        case AlComb_Multiply: return existing * val;
+        case AlComb_Min:      return std::min(existing, val);
+        case AlComb_Max:      return std::max(existing, val);
+        case AlComb_Add:      return std::clamp(existing + val, 0.0f, 1.0f);
+        case AlComb_Subtract: return std::clamp(existing - val, 0.0f, 1.0f);
+        default:              return val;    // Replace
+        }
+    }
+
     void EnsureChannel(Mesh& mesh, int ch) const
     {
         if (ch < 1 || ch > 99) return;
@@ -196,6 +268,7 @@ private:
         const bool  gray     = PBb(al_gray,    t, FALSE) != FALSE;
         const bool  invert   = PBb(al_invert,  t, FALSE) != FALSE;
         const bool  preview  = PBb(al_preview, t, FALSE) != FALSE;
+        const int   combine  = std::clamp(PBi(al_combine, t, AlComb_Replace), 0, AlComb_Count - 1);
 
         const int nv = mesh.numVerts;
 
@@ -242,6 +315,17 @@ private:
 
             float occ = std::clamp((wCav*cav + wHgt*hgt + wDwn*dwn) * strength, 0.0f, 1.0f);
             aoVal[v] = invert ? occ : (1.0f - occ);
+        }
+
+        // Combine with whatever AO is already in the channel (Replace = ignore).
+        // Read BEFORE the write block rebuilds the channel and destroys it.
+        if (combine != AlComb_Replace)
+        {
+            std::vector<float> existing;
+            ReadExistingScalar(mesh, ch, existing);
+            for (int v = 0; v < nv; ++v)
+                if (v < (int)existing.size())
+                    aoVal[v] = CombineAO(combine, existing[v], aoVal[v]);
         }
 
         // ---- Write target channel, face-corner (ch0 -> legacy vertCol) ----
@@ -310,6 +394,47 @@ private:
 void* EZAOLiteClassDesc::Create(BOOL) { return new EZAOLite(); }
 
 // ---------------------------------------------------------------------------
+// DlgProc — populates the Combine-mode combobox and syncs it to the pblock.
+// ---------------------------------------------------------------------------
+class EZAOLiteDlgProc : public ParamMap2UserDlgProc
+{
+public:
+    INT_PTR DlgProc(TimeValue t, IParamMap2* map, HWND hWnd,
+                    UINT msg, WPARAM wParam, LPARAM) override
+    {
+        switch (msg)
+        {
+        case WM_INITDIALOG:
+        {
+            HWND cb = GetDlgItem(hWnd, IDC_AL_COMBO_COMBINE);
+            if (cb && map && map->GetParamBlock())
+            {
+                SendMessage(cb, CB_RESETCONTENT, 0, 0);
+                for (int i = 0; i < AlComb_Count; ++i)
+                    SendMessage(cb, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(kAlCombineLabels[i]));
+                int val = 0;
+                map->GetParamBlock()->GetValue((ParamID)al_combine, 0, val, FOREVER);
+                SendMessage(cb, CB_SETCURSEL, (WPARAM)std::clamp(val, 0, AlComb_Count - 1), 0);
+            }
+            break;
+        }
+        case WM_COMMAND:
+            if (HIWORD(wParam) == CBN_SELCHANGE && LOWORD(wParam) == IDC_AL_COMBO_COMBINE)
+            {
+                int sel = (int)SendMessage(GetDlgItem(hWnd, IDC_AL_COMBO_COMBINE), CB_GETCURSEL, 0, 0);
+                if (sel >= 0 && map && map->GetParamBlock())
+                    map->GetParamBlock()->SetValue((ParamID)al_combine, t, sel);
+                return TRUE;
+            }
+            break;
+        }
+        return FALSE;
+    }
+    void DeleteThis() override {}
+};
+static EZAOLiteDlgProc g_AlDlgProc;
+
+// ---------------------------------------------------------------------------
 // ParamBlockDesc2
 // ---------------------------------------------------------------------------
 static ParamBlockDesc2 g_AlPBlock
@@ -317,7 +442,7 @@ static ParamBlockDesc2 g_AlPBlock
     kAlPBlock, _T("params"), IDS_AL_PARAMS, &g_EZAOLiteDesc,
     P_AUTO_CONSTRUCT | P_AUTO_UI,
     0,
-    IDD_PANEL_AOLITE, IDS_AL_PARAMS, 0, 0, nullptr,
+    IDD_PANEL_AOLITE, IDS_AL_PARAMS, 0, 0, &g_AlDlgProc,
 
     al_ch, _T("aoChannel"), TYPE_INT, P_ANIMATABLE, IDS_AL_CH,
         p_default, 11, p_range, 0, 99,
@@ -347,6 +472,9 @@ static ParamBlockDesc2 g_AlPBlock
     p_end,
     al_preview, _T("preview"), TYPE_BOOL, P_ANIMATABLE, IDS_AL_PREVIEW,
         p_default, FALSE, p_ui, TYPE_SINGLECHEKBOX, IDC_AL_CHK_PREVIEW,
+    p_end,
+    al_combine, _T("combine"), TYPE_INT, P_ANIMATABLE, IDS_AL_COMBINE,
+        p_default, AlComb_Replace, p_range, 0, AlComb_Count - 1,
     p_end,
 
     p_end
