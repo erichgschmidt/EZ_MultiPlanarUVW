@@ -291,3 +291,34 @@
 #define IDC_SM_CHK_RESPECT    2206
 #define IDC_SM_CHK_SELONLY    2207
 #define IDC_SM_CHK_CLEARNORM  2208
+
+// ===========================================================================
+// EZ AO (simple)  —  fifth modifier class (own dialog + IDs)
+// ===========================================================================
+#define IDD_PANEL_AOLITE 105
+
+// strings (160+)
+#define IDS_AL_PARAMS    160
+#define IDS_AL_CH        161
+#define IDS_AL_CAVITY    162
+#define IDS_AL_HEIGHT    163
+#define IDS_AL_DOWN      164
+#define IDS_AL_STRENGTH  165
+#define IDS_AL_GRAY      166
+#define IDS_AL_INVERT    167
+#define IDS_AL_PREVIEW   168
+
+// controls (2300+)
+#define IDC_AL_EDIT_CH        2300
+#define IDC_AL_SPIN_CH        2301
+#define IDC_AL_EDIT_CAVITY    2302
+#define IDC_AL_SPIN_CAVITY    2303
+#define IDC_AL_EDIT_HEIGHT    2304
+#define IDC_AL_SPIN_HEIGHT    2305
+#define IDC_AL_EDIT_DOWN      2306
+#define IDC_AL_SPIN_DOWN      2307
+#define IDC_AL_EDIT_STRENGTH  2308
+#define IDC_AL_SPIN_STRENGTH  2309
+#define IDC_AL_CHK_GRAY       2310
+#define IDC_AL_CHK_INVERT     2311
+#define IDC_AL_CHK_PREVIEW    2312

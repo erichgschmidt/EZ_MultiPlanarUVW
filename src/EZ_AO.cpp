@@ -45,7 +45,7 @@ extern HINSTANCE hInstance;
 
 #define EZ_BOXTRI_AO_CLASS_ID Class_ID(0x6d2f3a11, 0x1e0b7c60)
 
-static const TCHAR* kAOName     = _T("EZ BoxTri AO");
+static const TCHAR* kAOName     = _T("EZ AO 2");
 static const TCHAR* kAOCategory = _T("EZ Tools");
 
 // ---------------------------------------------------------------------------

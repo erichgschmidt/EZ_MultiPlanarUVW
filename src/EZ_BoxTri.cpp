@@ -991,15 +991,16 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, ULONG fdwReason, LPVOID)
     return TRUE;
 }
 
-// Companion modifier classes live in EZ_AO.cpp, EZ_Masks.cpp, EZ_Smooth.cpp
+// Companion modifier classes (EZ_AO.cpp, EZ_Masks.cpp, EZ_Smooth.cpp, EZ_AOLite.cpp)
 extern ClassDesc2* GetEZBoxTriAODesc();
 extern ClassDesc2* GetEZMasksDesc();
 extern ClassDesc2* GetEZSmoothDesc();
+extern ClassDesc2* GetEZAOLiteDesc();
 
 extern "C"
 {
     __declspec(dllexport) const TCHAR* LibDescription()    { return _T("EZ BoxTri Triplanar + AO + Masks + Smoothing"); }
-    __declspec(dllexport) int          LibNumberClasses()  { return 4; }
+    __declspec(dllexport) int          LibNumberClasses()  { return 5; }
     __declspec(dllexport) ClassDesc*   LibClassDesc(int i)
     {
         switch (i)
@@ -1008,6 +1009,7 @@ extern "C"
         case 1:  return GetEZBoxTriAODesc();
         case 2:  return GetEZMasksDesc();
         case 3:  return GetEZSmoothDesc();
+        case 4:  return GetEZAOLiteDesc();
         default: return nullptr;
         }
     }
